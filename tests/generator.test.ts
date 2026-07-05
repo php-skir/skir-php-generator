@@ -68,4 +68,51 @@ describe("generatePhpFiles", () => {
     expect(files[0]?.code).toContain("Variant::wrapper('premium_since', 2, Type::timestamp())");
     expect(files[0]?.code).toContain("EnumValue::wrapper('premium_since', $value)");
   });
+
+  it("generates PHP method descriptors for SkirRPC methods", () => {
+    const files = generatePhpFiles({
+      config: {
+        namespace: "App\\Skir",
+      },
+      modules: [
+        {
+          path: "users.skir",
+          records: [
+            {
+              kind: "struct",
+              name: "GetUserRequest",
+              fields: [
+                { kind: "field", name: "user_id", number: 0, type: { kind: "int32" } },
+              ],
+            },
+            {
+              kind: "struct",
+              name: "User",
+              fields: [
+                { kind: "field", name: "name", number: 0, type: { kind: "string" } },
+              ],
+            },
+          ],
+          methods: [
+            {
+              kind: "method",
+              name: "GetUser",
+              number: 3180856469,
+              requestType: { kind: "record", name: "GetUserRequest" },
+              responseType: { kind: "record", name: "User" },
+            },
+          ],
+        },
+      ],
+    });
+
+    const methodFile = files.find((file) => file.path === "SkirMethods.php");
+
+    expect(methodFile?.code).toContain("use LaravelSkir\\Runtime\\MethodDescriptor;");
+    expect(methodFile?.code).toContain("public static function getUser(): MethodDescriptor");
+    expect(methodFile?.code).toContain("name: 'GetUser'");
+    expect(methodFile?.code).toContain("number: 3180856469");
+    expect(methodFile?.code).toContain("requestType: GetUserRequest::skirType()");
+    expect(methodFile?.code).toContain("responseType: User::skirType()");
+  });
 });

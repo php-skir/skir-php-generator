@@ -10,6 +10,7 @@ export interface PhpGeneratorInput {
 export interface SkirModule {
   readonly path: string;
   readonly records?: readonly (SkirRecord | SkirRecordLocation)[];
+  readonly methods?: readonly SkirMethod[];
 }
 
 export interface SkirRecordLocation {
@@ -44,10 +45,27 @@ export type SkirType =
       readonly primitive?: string;
       readonly item?: SkirType;
       readonly other?: SkirType;
+      readonly name?: string | SkirToken;
+      readonly nameParts?: readonly SkirRecordNamePart[];
     };
 
 export interface SkirToken {
   readonly text: string;
+}
+
+export type SkirRecordNamePart =
+  | string
+  | SkirToken
+  | {
+      readonly token: string | SkirToken;
+    };
+
+export interface SkirMethod {
+  readonly kind: "method";
+  readonly name: string | SkirToken;
+  readonly number: number;
+  readonly requestType?: SkirType;
+  readonly responseType?: SkirType;
 }
 
 export interface GeneratedFile {
@@ -57,8 +75,7 @@ export interface GeneratedFile {
 
 export function generatePhpFiles(input: PhpGeneratorInput): GeneratedFile[] {
   const namespace = input.config?.namespace ?? "App\\Skir";
-
-  return input.modules.flatMap((module) =>
+  const recordFiles = input.modules.flatMap((module) =>
     (module.records ?? [])
       .map((record) => normalizeRecord(record))
       .filter((record) => isStruct(record) || isEnum(record))
@@ -66,6 +83,17 @@ export function generatePhpFiles(input: PhpGeneratorInput): GeneratedFile[] {
         ? generateEnumFile(namespace, record)
         : generateStructFile(namespace, record)),
   );
+
+  const methods = input.modules.flatMap((module) => module.methods ?? []);
+
+  if (methods.length === 0) {
+    return recordFiles;
+  }
+
+  return [
+    ...recordFiles,
+    generateMethodsFile(namespace, methods),
+  ];
 }
 
 function generateStructFile(namespace: string, record: SkirRecord): GeneratedFile {
@@ -287,6 +315,55 @@ function generateEnumFromDenseJson(className: string): string {
   ].join("\n");
 }
 
+function generateMethodsFile(namespace: string, methods: readonly SkirMethod[]): GeneratedFile {
+  return {
+    path: "SkirMethods.php",
+    code: [
+      "<?php",
+      "",
+      "declare(strict_types=1);",
+      "",
+      `namespace ${namespace};`,
+      "",
+      "use LaravelSkir\\Runtime\\MethodDescriptor;",
+      "",
+      "final readonly class SkirMethods",
+      "{",
+      indent(generateAllMethods(methods)),
+      "",
+      indent(methods.map((method) => generateMethodDescriptor(method)).join("\n\n")),
+      "}",
+      "",
+    ].join("\n"),
+  };
+}
+
+function generateAllMethods(methods: readonly SkirMethod[]): string {
+  return [
+    "/** @return array<string, MethodDescriptor> */",
+    "public static function all(): array",
+    "{",
+    "    return [",
+    ...methods.map((method) => `        '${tokenText(method.name)}' => self::${toPropertyName(tokenText(method.name))}(),`),
+    "    ];",
+    "}",
+  ].join("\n");
+}
+
+function generateMethodDescriptor(method: SkirMethod): string {
+  return [
+    `public static function ${toPropertyName(tokenText(method.name))}(): MethodDescriptor`,
+    "{",
+    "    return new MethodDescriptor(",
+    `        name: '${tokenText(method.name)}',`,
+    `        number: ${method.number},`,
+    `        requestType: ${runtimeTypeExpression(method.requestType ?? "string")},`,
+    `        responseType: ${runtimeTypeExpression(method.responseType ?? "string")},`,
+    "    );",
+    "}",
+  ].join("\n");
+}
+
 interface StructField {
   readonly name: string;
   readonly number: number;
@@ -409,6 +486,10 @@ function runtimeTypeExpression(type: SkirType): string {
     return `Type::optional(${runtimeTypeExpression(optionalInnerType(type))})`;
   }
 
+  if (kind === "record") {
+    return `${toClassName(recordTypeName(type))}::skirType()`;
+  }
+
   return `Type::${kind}()`;
 }
 
@@ -438,6 +519,34 @@ function optionalInnerType(type: SkirType): SkirType {
   }
 
   return "string";
+}
+
+function recordTypeName(type: SkirType): string {
+  if (typeof type === "string") {
+    throw new Error("String primitive types cannot be used as record references.");
+  }
+
+  if (type.name !== undefined) {
+    return tokenText(type.name);
+  }
+
+  if (type.nameParts !== undefined && type.nameParts.length > 0) {
+    return recordNamePartText(type.nameParts[type.nameParts.length - 1]);
+  }
+
+  throw new Error("Skir record reference is missing a name.");
+}
+
+function recordNamePartText(part: SkirRecordNamePart): string {
+  if (typeof part === "string") {
+    return part;
+  }
+
+  if ("token" in part) {
+    return tokenText(part.token);
+  }
+
+  return tokenText(part);
 }
 
 function toClassName(name: string): string {

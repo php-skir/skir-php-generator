@@ -74,6 +74,15 @@ describe("generated PHP", () => {
               ],
             },
           ],
+          methods: [
+            {
+              kind: "method",
+              name: "GetUser",
+              number: 3180856469,
+              requestType: { kind: "record", name: "User" },
+              responseType: { kind: "record", name: "User" },
+            },
+          ],
         },
       ],
     });
@@ -91,6 +100,7 @@ declare(strict_types=1);
 require __DIR__.'/vendor/autoload.php';
 
 use App\\Skir\\SubscriptionStatus;
+use App\\Skir\\SkirMethods;
 use App\\Skir\\User;
 
 $user = new User(userId: 400, name: 'John Doe');
@@ -116,6 +126,12 @@ $decodedStatus = SubscriptionStatus::fromDenseJson('[2,1743682787000]');
 if ($decodedStatus->name() !== 'premium_since' || $decodedStatus->payload() !== 1743682787000) {
     throw new RuntimeException('Unexpected decoded status.');
 }
+
+$method = SkirMethods::getUser();
+
+if ($method->name !== 'GetUser' || $method->number !== 3180856469) {
+    throw new RuntimeException('Unexpected method descriptor.');
+}
 `,
     );
 
@@ -133,7 +149,6 @@ if ($decodedStatus->name() !== 'premium_since' || $decodedStatus->payload() !== 
       rmSync(projectPath, { recursive: true, force: true });
     }
 
-    expect(files.map((file) => file.path).sort()).toEqual(["SubscriptionStatus.php", "User.php"]);
+    expect(files.map((file) => file.path).sort()).toEqual(["SkirMethods.php", "SubscriptionStatus.php", "User.php"]);
   }, 60_000);
 });
-
