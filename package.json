@@ -1,0 +1,32 @@
+{
+  "name": "skir-php-generator",
+  "version": "0.1.0",
+  "description": "Skir code generator for standard PHP data objects.",
+  "type": "module",
+  "license": "MIT",
+  "author": {
+    "name": "Maxim Kerstens",
+    "email": "maxim.kerstens@gmail.com"
+  },
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "skir-internal": "^0.2.21",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vitest": "^4.0.0"
+  }
+}
