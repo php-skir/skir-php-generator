@@ -136,7 +136,10 @@ export function generatePhpFiles(input: PhpGeneratorInput): GeneratedFile[] {
 
   return [
     ...recordFiles,
-    ...Array.from(methodGroups.values()).map((group) => generateMethodsFile(group.context, group.methods)),
+    ...Array.from(methodGroups.values()).flatMap((group) => [
+      generateMethodsFile(group.context, group.methods),
+      generateClientFile(group.context, group.methods),
+    ]),
   ];
 }
 
@@ -483,6 +486,60 @@ function generateMethodDescriptor(method: SkirMethod, context: ModuleOutputConte
     `        requestType: ${runtimeTypeExpression(method.requestType ?? "string", context)},`,
     `        responseType: ${runtimeTypeExpression(method.responseType ?? "string", context)},`,
     "    );",
+    "}",
+  ].join("\n");
+}
+
+function generateClientFile(context: ModuleOutputContext, methods: readonly SkirMethod[]): GeneratedFile {
+  const runtimeImports = [
+    "LaravelSkir\\Client\\SkirClient",
+  ];
+  const fileContext = fileOutputContext(context, "SkirRpcClient", runtimeImports);
+  const clientMethods = methods.map((method) => generateClientMethod(method, fileContext)).join("\n\n");
+
+  return {
+    path: outputPath(context, "SkirRpcClient.php"),
+    code: [
+      "<?php",
+      "",
+      "declare(strict_types=1);",
+      "",
+      `namespace ${context.namespace};`,
+      "",
+      ...generateUseStatements(fileContext, runtimeImports),
+      "",
+      "final readonly class SkirRpcClient",
+      "{",
+      indent(generateClientConstructor()),
+      "",
+      indent(clientMethods),
+      "}",
+      "",
+    ].join("\n"),
+  };
+}
+
+function generateClientConstructor(): string {
+  return [
+    "public function __construct(",
+    "    private SkirClient $client,",
+    ") {}",
+  ].join("\n");
+}
+
+function generateClientMethod(method: SkirMethod, context: ModuleOutputContext): string {
+  const methodName = toPropertyName(tokenText(method.name));
+  const requestType = method.requestType ?? "string";
+  const responseType = method.responseType ?? "string";
+  const request = valueToArrayExpression(requestType, "$request", context);
+  const response = valueFromArrayExpression(responseType, "$response", context);
+
+  return [
+    `public function ${methodName}(${phpType(requestType, context)} $request): ${phpType(responseType, context)}`,
+    "{",
+    `    $response = $this->client->invoke(SkirMethods::${methodName}(), ${request});`,
+    "",
+    `    return ${response};`,
     "}",
   ].join("\n");
 }

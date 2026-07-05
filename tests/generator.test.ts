@@ -143,6 +143,54 @@ describe("generatePhpFiles", () => {
     expect(methodFile?.code).toContain("responseType: User::skirType()");
   });
 
+  it("generates a typed SkirRPC client for SkirRPC methods", () => {
+    const files = generatePhpFiles({
+      config: {
+        namespace: "App\\Skir",
+      },
+      modules: [
+        {
+          path: "users.skir",
+          records: [
+            {
+              kind: "struct",
+              name: "GetUserRequest",
+              fields: [
+                { kind: "field", name: "user_id", number: 0, type: { kind: "int32" } },
+              ],
+            },
+            {
+              kind: "struct",
+              name: "User",
+              fields: [
+                { kind: "field", name: "name", number: 0, type: { kind: "string" } },
+              ],
+            },
+          ],
+          methods: [
+            {
+              kind: "method",
+              name: "GetUser",
+              number: 3180856469,
+              requestType: { kind: "record", name: "GetUserRequest" },
+              responseType: { kind: "record", name: "User" },
+            },
+          ],
+        },
+      ],
+    });
+
+    const clientFile = files.find((file) => file.path === "SkirRpcClient.php");
+
+    expect(clientFile?.code).toContain("use LaravelSkir\\Client\\SkirClient;");
+    expect(clientFile?.code).toContain("final readonly class SkirRpcClient");
+    expect(clientFile?.code).toContain("public function __construct(");
+    expect(clientFile?.code).toContain("private SkirClient $client,");
+    expect(clientFile?.code).toContain("public function getUser(GetUserRequest $request): User");
+    expect(clientFile?.code).toContain("$response = $this->client->invoke(SkirMethods::getUser(), $request->toArray());");
+    expect(clientFile?.code).toContain("return User::fromArray($response);");
+  });
+
   it("uses module directories as PHP subnamespaces and output directories", () => {
     const files = generatePhpFiles({
       config: {
@@ -183,12 +231,15 @@ describe("generatePhpFiles", () => {
     const userFile = files.find((file) => file.path === "Admin/User.php");
     const requestFile = files.find((file) => file.path === "Admin/GetUserRequest.php");
     const methodsFile = files.find((file) => file.path === "Admin/SkirMethods.php");
+    const clientFile = files.find((file) => file.path === "Admin/SkirRpcClient.php");
 
     expect(userFile?.code).toContain("namespace App\\Skir\\Admin;");
     expect(requestFile?.code).toContain("namespace App\\Skir\\Admin;");
     expect(methodsFile?.code).toContain("namespace App\\Skir\\Admin;");
+    expect(clientFile?.code).toContain("namespace App\\Skir\\Admin;");
     expect(methodsFile?.code).toContain("requestType: GetUserRequest::skirType()");
     expect(methodsFile?.code).toContain("responseType: User::skirType()");
+    expect(clientFile?.code).toContain("public function getUser(GetUserRequest $request): User");
   });
 
   it("qualifies record references from other module namespaces", () => {
