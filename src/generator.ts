@@ -61,14 +61,16 @@ export function generatePhpFiles(input: PhpGeneratorInput): GeneratedFile[] {
   return input.modules.flatMap((module) =>
     (module.records ?? [])
       .map((record) => normalizeRecord(record))
-      .filter((record) => isStruct(record))
-      .map((record) => generateStructFile(namespace, record)),
+      .filter((record) => isStruct(record) || isEnum(record))
+      .map((record) => isEnum(record)
+        ? generateEnumFile(namespace, record)
+        : generateStructFile(namespace, record)),
   );
 }
 
 function generateStructFile(namespace: string, record: SkirRecord): GeneratedFile {
   const className = toClassName(tokenText(record.name));
-  const fields = collectFields(record);
+  const fields = collectStructFields(record);
 
   return {
     path: `${className}.php`,
@@ -100,7 +102,7 @@ function generateStructFile(namespace: string, record: SkirRecord): GeneratedFil
   };
 }
 
-function generateConstructor(fields: readonly StructField[]): string {
+function generateConstructor(fields: readonly TypedStructField[]): string {
   if (fields.length === 0) {
     return "private function __construct() {}";
   }
@@ -113,13 +115,13 @@ function generateConstructor(fields: readonly StructField[]): string {
 }
 
 function generateSkirType(record: SkirRecord): string {
-  const entries = collectDeclarations(record)
+  const entries = collectDeclarations(record, "string")
     .map((declaration) => {
       if (isRemovedDeclaration(declaration)) {
         return `    Field::removed(${declaration.number}),`;
       }
 
-      return `    Field::value('${declaration.name}', ${declaration.number}, ${runtimeTypeExpression(declaration.type)}),`;
+      return `    Field::value('${declaration.name}', ${declaration.number}, ${runtimeTypeExpression(declaration.type ?? "string")}),`;
     })
     .join("\n");
 
@@ -133,7 +135,7 @@ function generateSkirType(record: SkirRecord): string {
   ].join("\n");
 }
 
-function generateToArray(fields: readonly StructField[]): string {
+function generateToArray(fields: readonly TypedStructField[]): string {
   return [
     "/** @return array<string, mixed> */",
     "public function toArray(): array",
@@ -154,7 +156,7 @@ function generateToDenseJson(): string {
   ].join("\n");
 }
 
-function generateFromDenseJson(className: string, fields: readonly StructField[]): string {
+function generateFromDenseJson(className: string, fields: readonly TypedStructField[]): string {
   return [
     `public static function fromDenseJson(string $json): ${className}`,
     "{",
@@ -167,7 +169,131 @@ function generateFromDenseJson(className: string, fields: readonly StructField[]
   ].join("\n");
 }
 
+function generateEnumFile(namespace: string, record: SkirRecord): GeneratedFile {
+  const className = toClassName(tokenText(record.name));
+  const variants = collectDeclarations(record);
+
+  return {
+    path: `${className}.php`,
+    code: [
+      "<?php",
+      "",
+      "declare(strict_types=1);",
+      "",
+      `namespace ${namespace};`,
+      "",
+      "use LaravelSkir\\Runtime\\DenseJson;",
+      "use LaravelSkir\\Runtime\\EnumValue;",
+      "use LaravelSkir\\Runtime\\Type;",
+      "use LaravelSkir\\Runtime\\Variant;",
+      "",
+      `final readonly class ${className}`,
+      "{",
+      indent("private function __construct(private EnumValue $value) {}"),
+      "",
+      indent(generateEnumConstructors(variants)),
+      "",
+      indent(generateEnumSkirType(record)),
+      "",
+      indent(generateEnumAccessors()),
+      "",
+      indent(generateEnumToDenseJson()),
+      "",
+      indent(generateEnumFromDenseJson(className)),
+      "}",
+      "",
+    ].join("\n"),
+  };
+}
+
+function generateEnumConstructors(variants: readonly StructDeclaration[]): string {
+  return variants
+    .filter((variant): variant is StructField => !isRemovedDeclaration(variant))
+    .map((variant) => {
+      if (variant.type === undefined) {
+        return [
+          `public static function ${toPropertyName(variant.name)}(): self`,
+          "{",
+          `    return new self(EnumValue::constant('${variant.name}'));`,
+          "}",
+        ].join("\n");
+      }
+
+      return [
+        `public static function ${toPropertyName(variant.name)}(${phpType(variant.type)} $value): self`,
+        "{",
+        `    return new self(EnumValue::wrapper('${variant.name}', $value));`,
+        "}",
+      ].join("\n");
+    })
+    .join("\n\n");
+}
+
+function generateEnumSkirType(record: SkirRecord): string {
+  const entries = collectDeclarations(record)
+    .map((declaration) => {
+      if (isRemovedDeclaration(declaration)) {
+        return null;
+      }
+
+      if (declaration.type === undefined) {
+        return `    Variant::constant('${declaration.name}', ${declaration.number}),`;
+      }
+
+      return `    Variant::wrapper('${declaration.name}', ${declaration.number}, ${runtimeTypeExpression(declaration.type)}),`;
+    })
+    .filter((entry): entry is string => entry !== null)
+    .join("\n");
+
+  return [
+    "public static function skirType(): Type",
+    "{",
+    "    return Type::enum([",
+    entries,
+    "    ]);",
+    "}",
+  ].join("\n");
+}
+
+function generateEnumAccessors(): string {
+  return [
+    "public function name(): string",
+    "{",
+    "    return $this->value->name;",
+    "}",
+    "",
+    "public function payload(): mixed",
+    "{",
+    "    return $this->value->value;",
+    "}",
+  ].join("\n");
+}
+
+function generateEnumToDenseJson(): string {
+  return [
+    "public function toDenseJson(): string",
+    "{",
+    "    return DenseJson::toJson(self::skirType(), $this->value);",
+    "}",
+  ].join("\n");
+}
+
+function generateEnumFromDenseJson(className: string): string {
+  return [
+    `public static function fromDenseJson(string $json): ${className}`,
+    "{",
+    "    return new self(DenseJson::fromJson(self::skirType(), $json));",
+    "}",
+  ].join("\n");
+}
+
 interface StructField {
+  readonly name: string;
+  readonly number: number;
+  readonly type?: SkirType;
+}
+
+interface TypedStructField {
   readonly name: string;
   readonly number: number;
   readonly type: SkirType;
@@ -182,11 +308,17 @@ interface RemovedDeclaration {
   readonly number: number;
 }
 
-function collectFields(record: SkirRecord): StructField[] {
-  return collectDeclarations(record).filter((field): field is StructField => !isRemovedDeclaration(field));
+function collectStructFields(record: SkirRecord): TypedStructField[] {
+  return collectDeclarations(record, "string")
+    .filter((field): field is StructField => !isRemovedDeclaration(field))
+    .map((field) => ({
+      name: field.name,
+      number: field.number,
+      type: field.type ?? "string",
+    }));
 }
 
-function collectDeclarations(record: SkirRecord): StructDeclaration[] {
+function collectDeclarations(record: SkirRecord, defaultMissingType?: SkirType): StructDeclaration[] {
   const declarations: StructDeclaration[] = [];
 
   for (const field of record.fields ?? []) {
@@ -199,7 +331,7 @@ function collectDeclarations(record: SkirRecord): StructDeclaration[] {
     declarations.push({
       name: tokenText(field.name),
       number: field.number,
-      type: field.type ?? "string",
+      type: field.type ?? defaultMissingType,
     });
   }
 
@@ -214,6 +346,10 @@ function collectDeclarations(record: SkirRecord): StructDeclaration[] {
 
 function isStruct(record: SkirRecord): boolean {
   return record.recordType === "struct" || record.kind === "struct";
+}
+
+function isEnum(record: SkirRecord): boolean {
+  return record.recordType === "enum" || record.kind === "enum";
 }
 
 function normalizeRecord(record: SkirRecord | SkirRecordLocation): SkirRecord {

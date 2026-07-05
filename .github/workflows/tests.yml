@@ -21,6 +21,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Checkout runtime
+        uses: actions/checkout@v4
+        with:
+          repository: laravel-skir/runtime
+          path: runtime
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          coverage: none
+          tools: composer:v2
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -35,7 +48,8 @@ jobs:
 
       - name: Run tests
         run: npm test
+        env:
+          SKIR_RUNTIME_PATH: ${{ github.workspace }}/runtime
 
       - name: Build
         run: npm run build
-

@@ -35,5 +35,37 @@ describe("generatePhpFiles", () => {
     expect(files[0]?.code).toContain("Field::removed(1)");
     expect(files[0]?.code).toContain("DenseJson::toJson(self::skirType(), $this->toArray())");
   });
-});
 
+  it("generates a PHP readonly class for a Skir enum", () => {
+    const files = generatePhpFiles({
+      config: {
+        namespace: "App\\Skir",
+      },
+      modules: [
+        {
+          path: "subscription-status.skir",
+          records: [
+            {
+              recordType: "enum",
+              name: "SubscriptionStatus",
+              fields: [
+                { kind: "field", name: "free", number: 1 },
+                { kind: "field", name: "premium_since", number: 2, type: { kind: "timestamp" } },
+              ],
+              removedNumbers: [3],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(files).toHaveLength(1);
+    expect(files[0]?.path).toBe("SubscriptionStatus.php");
+    expect(files[0]?.code).toContain("final readonly class SubscriptionStatus");
+    expect(files[0]?.code).toContain("public static function free(): self");
+    expect(files[0]?.code).toContain("public static function premiumSince(int $value): self");
+    expect(files[0]?.code).toContain("Variant::constant('free', 1)");
+    expect(files[0]?.code).toContain("Variant::wrapper('premium_since', 2, Type::timestamp())");
+    expect(files[0]?.code).toContain("EnumValue::wrapper('premium_since', $value)");
+  });
+});

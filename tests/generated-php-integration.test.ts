@@ -1,0 +1,139 @@
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+
+import { describe, expect, it } from "vitest";
+
+import { generatePhpFiles } from "../src/generator.js";
+
+describe("generated PHP", () => {
+  it("round-trips dense JSON through laravel-skir/runtime", () => {
+    const projectPath = mkdtempSync(join(tmpdir(), "skir-php-generator-"));
+    const sourcePath = join(projectPath, "src");
+    const runtimePath = process.env.SKIR_RUNTIME_PATH ?? resolve("../runtime");
+
+    mkdirSync(sourcePath, { recursive: true });
+
+    writeFileSync(
+      join(projectPath, "composer.json"),
+      JSON.stringify(
+        {
+          repositories: [
+            {
+              type: "path",
+              url: runtimePath,
+              options: {
+                symlink: false,
+              },
+            },
+          ],
+          require: {
+            php: "^8.3",
+            "laravel-skir/runtime": "*",
+          },
+          autoload: {
+            "psr-4": {
+              "App\\Skir\\": "src/",
+            },
+          },
+          config: {
+            "sort-packages": true,
+          },
+          "minimum-stability": "dev",
+          "prefer-stable": true,
+        },
+        null,
+        2,
+      ),
+    );
+
+    const files = generatePhpFiles({
+      config: {
+        namespace: "App\\Skir",
+      },
+      modules: [
+        {
+          path: "fixtures.skir",
+          records: [
+            {
+              kind: "struct",
+              name: "User",
+              fields: [
+                { kind: "field", name: "user_id", number: 0, type: { kind: "int32" } },
+                { kind: "removed", number: 1 },
+                { kind: "field", name: "name", number: 2, type: { kind: "string" } },
+              ],
+            },
+            {
+              recordType: "enum",
+              name: "SubscriptionStatus",
+              fields: [
+                { kind: "field", name: "free", number: 1 },
+                { kind: "field", name: "premium_since", number: 2, type: { kind: "timestamp" } },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    for (const file of files) {
+      writeFileSync(join(sourcePath, file.path), file.code);
+    }
+
+    writeFileSync(
+      join(projectPath, "verify.php"),
+      `<?php
+
+declare(strict_types=1);
+
+require __DIR__.'/vendor/autoload.php';
+
+use App\\Skir\\SubscriptionStatus;
+use App\\Skir\\User;
+
+$user = new User(userId: 400, name: 'John Doe');
+
+if ($user->toDenseJson() !== '[400,0,"John Doe"]') {
+    throw new RuntimeException('Unexpected user dense JSON: '.$user->toDenseJson());
+}
+
+$decodedUser = User::fromDenseJson('[400,0,"John Doe"]');
+
+if ($decodedUser->userId !== 400 || $decodedUser->name !== 'John Doe') {
+    throw new RuntimeException('Unexpected decoded user.');
+}
+
+$status = SubscriptionStatus::premiumSince(1743682787000);
+
+if ($status->toDenseJson() !== '[2,1743682787000]') {
+    throw new RuntimeException('Unexpected status dense JSON: '.$status->toDenseJson());
+}
+
+$decodedStatus = SubscriptionStatus::fromDenseJson('[2,1743682787000]');
+
+if ($decodedStatus->name() !== 'premium_since' || $decodedStatus->payload() !== 1743682787000) {
+    throw new RuntimeException('Unexpected decoded status.');
+}
+`,
+    );
+
+    try {
+      execFileSync("composer", ["install", "--no-interaction", "--no-progress"], {
+        cwd: projectPath,
+        stdio: "pipe",
+      });
+
+      execFileSync("php", ["verify.php"], {
+        cwd: projectPath,
+        stdio: "pipe",
+      });
+    } finally {
+      rmSync(projectPath, { recursive: true, force: true });
+    }
+
+    expect(files.map((file) => file.path).sort()).toEqual(["SubscriptionStatus.php", "User.php"]);
+  }, 60_000);
+});
+
