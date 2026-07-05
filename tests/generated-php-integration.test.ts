@@ -215,6 +215,15 @@ if ($method->name !== 'GetUser' || $method->number !== 3180856469) {
       rmSync(projectPath, { recursive: true, force: true });
     }
 
-    expect(files.map((file) => file.path).sort()).toEqual(["Address.php", "HealthCheckRequest.php", "SkirMethods.php", "SkirRpcClient.php", "SubscriptionStatus.php", "User.php"]);
+    expect(files.map((file) => file.path).sort()).toEqual([
+      "Address.php",
+      "HealthCheckRequest.php",
+      "SkirMethods.php",
+      "SkirProcedureProvider.php",
+      "SkirProcedures.php",
+      "SkirRpcClient.php",
+      "SubscriptionStatus.php",
+      "User.php",
+    ]);
   }, 60_000);
 });

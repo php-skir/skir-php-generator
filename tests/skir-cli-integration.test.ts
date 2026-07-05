@@ -219,6 +219,8 @@ if (! $rpcUser instanceof UsersUser || $rpcUser->name !== 'John Doe') {
         join(generatedPath, "Admin", "ProfilesUser.php"),
         join(generatedPath, "Admin", "SubscriptionStatus.php"),
         join(generatedPath, "Admin", "SkirMethods.php"),
+        join(generatedPath, "Admin", "SkirProcedureProvider.php"),
+        join(generatedPath, "Admin", "SkirProcedures.php"),
         join(generatedPath, "Admin", "SkirRpcClient.php"),
         join(generatedPath, "Common", "Address.php"),
       ];
@@ -232,12 +234,14 @@ if (! $rpcUser instanceof UsersUser || $rpcUser->name !== 'John Doe') {
 
       const userCode = readFileSync(join(generatedPath, "Admin", "UsersUser.php"), "utf8");
       const methodsCode = readFileSync(join(generatedPath, "Admin", "SkirMethods.php"), "utf8");
+      const providerCode = readFileSync(join(generatedPath, "Admin", "SkirProcedureProvider.php"), "utf8");
       const clientCode = readFileSync(join(generatedPath, "Admin", "SkirRpcClient.php"), "utf8");
 
       expect(userCode).toContain("use App\\Skir\\Common\\Address;");
       expect(userCode).not.toContain("\\App\\Skir\\Common\\Address");
       expect(methodsCode).toContain("requestType: UsersUser::skirType()");
       expect(methodsCode).toContain("responseType: UsersUser::skirType()");
+      expect(providerCode).toContain("namespace App\\Skir\\Admin;");
       expect(clientCode).toContain("public function getUser(UsersUser $request): UsersUser");
 
       execFileSync("composer", ["install", "--no-interaction", "--no-progress"], {

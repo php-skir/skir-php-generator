@@ -57,6 +57,20 @@ $client = new SkirRpcClient(new TransportSkirClient('https://example.com/skir'))
 $user = $client->getUser($request);
 ```
 
+For servers, the generator emits `SkirProcedures.php` and `SkirProcedureProvider.php`. Implement the generated interface and register the generated provider on a Laravel Skir endpoint:
+
+```php
+use App\Skir\Admin\SkirProcedureProvider;
+use App\Skir\Admin\SkirProcedures;
+use Illuminate\Support\Facades\Route;
+
+$this->app->bind(SkirProcedures::class, AdminProcedures::class);
+
+Route::skirRpc('/api/skir', [
+    SkirProcedureProvider::class,
+]);
+```
+
 ## Namespaces and modules
 
 The configured namespace defaults to `App\Skir`. Module directories become PHP subnamespaces and output directories:
@@ -69,4 +83,4 @@ When two generated records would otherwise use the same PHP class name in the sa
 
 ## Current scope
 
-This package generates framework-agnostic PHP DTOs, method descriptors, and typed client adapters. Laravel-specific data objects and server routing live in separate packages.
+This package generates framework-agnostic PHP DTOs, method descriptors, typed client adapters, and Laravel Skir server procedure adapters. Laravel-specific data objects and server routing live in separate packages.
