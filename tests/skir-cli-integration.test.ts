@@ -45,6 +45,8 @@ describe("skir CLI integration", () => {
         "  name: string;",
         "  address: Address;",
         "  previous_addresses: [Address];",
+        "  subscription_status: SubscriptionStatus;",
+        "  status_history: [SubscriptionStatus];",
         "}",
         "",
         "enum SubscriptionStatus {",
@@ -131,16 +133,29 @@ $user = new UsersUser(
     previousAddresses: [
         new Address(city: 'Brussels', postalCodes: ['1000']),
     ],
+    subscriptionStatus: SubscriptionStatus::premiumSince(1743682787000),
+    statusHistory: [
+        SubscriptionStatus::free(),
+        SubscriptionStatus::premiumSince(1743682787000),
+    ],
 );
 
-if ($user->toDenseJson() !== '[400,"John Doe",["Antwerp",["2000","2018"]],[["Brussels",["1000"]]]]') {
+if ($user->toDenseJson() !== '[400,"John Doe",["Antwerp",["2000","2018"]],[["Brussels",["1000"]]],[2,1743682787000],[1,[2,1743682787000]]]') {
     throw new RuntimeException('Unexpected user dense JSON: '.$user->toDenseJson());
 }
 
-$decodedUser = UsersUser::fromDenseJson('[400,"John Doe",["Antwerp",["2000","2018"]],[["Brussels",["1000"]]]]');
+$decodedUser = UsersUser::fromDenseJson('[400,"John Doe",["Antwerp",["2000","2018"]],[["Brussels",["1000"]]],[2,1743682787000],[1,[2,1743682787000]]]');
 
 if ($decodedUser->address->city !== 'Antwerp' || $decodedUser->previousAddresses[0]->city !== 'Brussels') {
     throw new RuntimeException('Unexpected decoded user.');
+}
+
+if ($decodedUser->subscriptionStatus->name() !== 'premium_since' || $decodedUser->subscriptionStatus->payload() !== 1743682787000) {
+    throw new RuntimeException('Unexpected decoded status field.');
+}
+
+if (count($decodedUser->statusHistory) !== 2 || $decodedUser->statusHistory[0]->name() !== 'free') {
+    throw new RuntimeException('Unexpected decoded status history.');
 }
 
 $status = SubscriptionStatus::premiumSince(1743682787000);
