@@ -67,6 +67,10 @@ describe("generatePhpFiles", () => {
     expect(files[0]?.code).toContain("Variant::constant('free', 1)");
     expect(files[0]?.code).toContain("Variant::wrapper('premium_since', 2, Type::timestamp())");
     expect(files[0]?.code).toContain("EnumValue::wrapper('premium_since', $value)");
+    expect(files[0]?.code).toContain("public function toSkirValue(): EnumValue");
+    expect(files[0]?.code).toContain("public static function fromSkirValue(EnumValue $value): SubscriptionStatus");
+    expect(files[0]?.code).toContain("public function toDenseValue(): int|array");
+    expect(files[0]?.code).toContain("public static function fromDenseValue(int|array $value): SubscriptionStatus");
   });
 
   it("generates PHP method descriptors for SkirRPC methods", () => {
@@ -434,6 +438,42 @@ describe("generatePhpFiles", () => {
     expect(userFile?.code).toContain("public Address $address");
     expect(userFile?.code).toContain("'address' => $this->address->toArray()");
     expect(userFile?.code).toContain("address: Address::fromArray($data['address'])");
+  });
+
+  it("normalizes generated enum fields through Skir runtime values", () => {
+    const files = generatePhpFiles({
+      config: {
+        namespace: "App\\Skir",
+      },
+      modules: [
+        {
+          path: "user.skir",
+          records: [
+            {
+              recordType: "enum",
+              name: "SubscriptionStatus",
+              fields: [
+                { kind: "field", name: "free", number: 1 },
+              ],
+            },
+            {
+              kind: "struct",
+              name: "User",
+              fields: [
+                { kind: "field", name: "subscription_status", number: 0, type: { kind: "record", name: "SubscriptionStatus", recordType: "enum" } },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const userFile = files.find((file) => file.path === "User.php");
+
+    expect(userFile?.code).toContain("'subscription_status' => $this->subscriptionStatus->toSkirValue()");
+    expect(userFile?.code).toContain("subscriptionStatus: SubscriptionStatus::fromSkirValue($data['subscription_status'])");
+    expect(userFile?.code).not.toContain("$this->subscriptionStatus->toArray()");
+    expect(userFile?.code).not.toContain("SubscriptionStatus::fromArray($data['subscription_status'])");
   });
 
   it("flattens nested Skir record locations into stable PHP class names", () => {

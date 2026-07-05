@@ -53,6 +53,7 @@ export type SkirType =
       readonly key?: unknown;
       readonly name?: string | SkirToken;
       readonly nameParts?: readonly SkirRecordNamePart[];
+      readonly recordType?: "struct" | "enum";
     };
 
 export interface SkirToken {
@@ -169,7 +170,7 @@ function generateStructFile(context: ModuleOutputContext, record: SkirRecord): G
       "",
       indent(skirType),
       "",
-      indent(generateToArray(fields)),
+      indent(generateToArray(fields, fileContext)),
       "",
       indent(fromArray),
       "",
@@ -215,7 +216,7 @@ function generateSkirType(record: SkirRecord, context: ModuleOutputContext): str
   ].join("\n");
 }
 
-function generateToArray(fields: readonly TypedStructField[]): string {
+function generateToArray(fields: readonly TypedStructField[], context: ModuleOutputContext): string {
   return [
     "/** @return array<string, mixed> */",
     "public function toArray(): array",
@@ -224,7 +225,7 @@ function generateToArray(fields: readonly TypedStructField[]): string {
     ...fields.map((field) => {
       const property = toPropertyName(field.name);
 
-      return `        '${field.name}' => ${valueToArrayExpression(field.type, `$this->${property}`)},`;
+      return `        '${field.name}' => ${valueToArrayExpression(field.type, `$this->${property}`, context)},`;
     }),
     "    ];",
     "}",
@@ -295,6 +296,14 @@ function generateEnumFile(context: ModuleOutputContext, record: SkirRecord): Gen
       "",
       indent(generateEnumAccessors()),
       "",
+      indent(generateEnumToSkirValue()),
+      "",
+      indent(generateEnumFromSkirValue(className)),
+      "",
+      indent(generateEnumToDenseValue()),
+      "",
+      indent(generateEnumFromDenseValue(className)),
+      "",
       indent(generateEnumToDenseJson()),
       "",
       indent(generateEnumFromDenseJson(className)),
@@ -363,6 +372,44 @@ function generateEnumAccessors(): string {
     "public function payload(): mixed",
     "{",
     "    return $this->value->value;",
+    "}",
+  ].join("\n");
+}
+
+function generateEnumToSkirValue(): string {
+  return [
+    "public function toSkirValue(): EnumValue",
+    "{",
+    "    return $this->value;",
+    "}",
+  ].join("\n");
+}
+
+function generateEnumFromSkirValue(className: string): string {
+  return [
+    `public static function fromSkirValue(EnumValue $value): ${className}`,
+    "{",
+    "    return new self($value);",
+    "}",
+  ].join("\n");
+}
+
+function generateEnumToDenseValue(): string {
+  return [
+    "/** @return int|array<int, mixed> */",
+    "public function toDenseValue(): int|array",
+    "{",
+    "    return DenseJson::encode(self::skirType(), $this->value);",
+    "}",
+  ].join("\n");
+}
+
+function generateEnumFromDenseValue(className: string): string {
+  return [
+    "/** @param int|array<int, mixed> $value */",
+    `public static function fromDenseValue(int|array $value): ${className}`,
+    "{",
+    "    return new self(DenseJson::decode(self::skirType(), $value));",
     "}",
   ].join("\n");
 }
@@ -677,10 +724,14 @@ function phpType(type: SkirType, context: ModuleOutputContext): string {
   return "mixed";
 }
 
-function valueToArrayExpression(type: SkirType, expression: string): string {
+function valueToArrayExpression(type: SkirType, expression: string, context: ModuleOutputContext): string {
   const kind = typeKind(type);
 
   if (kind === "record") {
+    if (isEnumRecordReference(type, context)) {
+      return `${expression}->toSkirValue()`;
+    }
+
     return `${expression}->toArray()`;
   }
 
@@ -688,7 +739,7 @@ function valueToArrayExpression(type: SkirType, expression: string): string {
     const innerType = optionalInnerType(type);
 
     if (typeKind(innerType) === "record" || typeKind(innerType) === "array") {
-      return `${expression} === null ? null : ${valueToArrayExpression(innerType, expression)}`;
+      return `${expression} === null ? null : ${valueToArrayExpression(innerType, expression, context)}`;
     }
 
     return expression;
@@ -698,7 +749,7 @@ function valueToArrayExpression(type: SkirType, expression: string): string {
     const itemType = arrayItemType(type);
 
     if (typeKind(itemType) === "record" || typeKind(itemType) === "optional" || typeKind(itemType) === "array") {
-      return `array_map(fn (mixed $item): mixed => ${valueToArrayExpression(itemType, "$item")}, ${expression})`;
+      return `array_map(fn (mixed $item): mixed => ${valueToArrayExpression(itemType, "$item", context)}, ${expression})`;
     }
   }
 
@@ -709,6 +760,10 @@ function valueFromArrayExpression(type: SkirType, expression: string, context: M
   const kind = typeKind(type);
 
   if (kind === "record") {
+    if (isEnumRecordReference(type, context)) {
+      return `${recordTypeClassName(type, context)}::fromSkirValue(${expression})`;
+    }
+
     return `${recordTypeClassName(type, context)}::fromArray(${expression})`;
   }
 
@@ -801,6 +856,26 @@ function recordTypeClassName(type: SkirType, context: ModuleOutputContext): stri
   }
 
   throw new Error("Skir record reference is missing a name.");
+}
+
+function isEnumRecordReference(type: SkirType, context: ModuleOutputContext): boolean {
+  if (typeof type === "string") {
+    return false;
+  }
+
+  if (type.kind !== "record") {
+    return false;
+  }
+
+  if (type.recordType === "enum") {
+    return true;
+  }
+
+  if (typeof type.key !== "string") {
+    return false;
+  }
+
+  return context.recordMap?.get(type.key)?.record.recordType === "enum";
 }
 
 function classNameForRecord(record: SkirRecord): string {
