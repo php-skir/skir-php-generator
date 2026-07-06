@@ -219,6 +219,7 @@ if (! $rpcUser instanceof UsersUser || $rpcUser->name !== 'John Doe') {
         join(generatedPath, "Admin", "UsersUser.php"),
         join(generatedPath, "Admin", "ProfilesUser.php"),
         join(generatedPath, "Admin", "SubscriptionStatus.php"),
+        join(generatedPath, "Admin", "AdminSkirMethod.php"),
         join(generatedPath, "Admin", "SkirMethods.php"),
         join(generatedPath, "Admin", "SkirProcedureProvider.php"),
         join(generatedPath, "Admin", "SkirProcedures.php"),

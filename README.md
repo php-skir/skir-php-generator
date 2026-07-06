@@ -45,7 +45,7 @@ The generator emits readonly PHP classes for Skir structs and enum wrapper class
 - `toDenseJson()` and `fromDenseJson()` for dense JSON payloads.
 - `toSkirValue()` and `fromSkirValue()` on generated enum classes.
 
-SkirRPC methods are emitted in `SkirMethods.php` as `MethodDescriptor` instances.
+SkirRPC methods are emitted in `SkirMethods.php` as `MethodDescriptor` instances. The generator also emits a module-scoped method enum such as `AdminSkirMethod.php` for attribute-based server routing.
 
 When a module defines SkirRPC methods, the generator also emits `SkirRpcClient.php`. It wraps `LaravelSkir\Client\SkirClient` and exposes typed methods:
 
@@ -57,20 +57,21 @@ $client = new SkirRpcClient(new TransportSkirClient('https://example.com/skir'))
 $user = $client->getUser($request);
 ```
 
-For servers, the generator emits `AbstractSkirProcedures.php`, `SkirProcedures.php`, and `SkirProcedureProvider.php`.
+For servers, the generator emits `AdminSkirMethod.php`, `AbstractSkirProcedures.php`, `SkirProcedures.php`, and `SkirProcedureProvider.php`.
 
-The recommended Laravel server path is to extend the generated abstract class and register your concrete procedure class directly:
+The recommended Laravel server path is to use the generated method enum with `laravel-skir/server` controller routing:
 
 ```php
-use App\Skir\Admin\AbstractSkirProcedures;
+use App\Skir\Admin\AdminSkirMethod;
 use App\Skir\Admin\GetUserRequest;
 use App\Skir\Admin\User;
-use Illuminate\Support\Facades\Route;
-use LaravelSkir\Server\RequestContext;
+use LaravelSkir\Server\Attributes\SkirMethod;
+use LaravelSkir\Server\SkirContext;
 
-final class AdminProcedures extends AbstractSkirProcedures
+final class UserController
 {
-    public function getUser(GetUserRequest $request, RequestContext $context): User
+    #[SkirMethod(AdminSkirMethod::GetUser)]
+    public function get(GetUserRequest $request, SkirContext $context): User
     {
         return new User(
             userId: $request->userId,
@@ -78,15 +79,23 @@ final class AdminProcedures extends AbstractSkirProcedures
         );
     }
 }
+```
+
+Register the controller on a Skir endpoint:
+
+```php
+use App\Skir\Controllers\UserController;
+use Illuminate\Support\Facades\Route;
+use LaravelSkir\Server\Facades\Skir;
 
 Route::skirRpc('/api/skir', [
-    AdminProcedures::class,
+    Skir::controller(UserController::class),
 ]);
 ```
 
-`AbstractSkirProcedures` registers generated method descriptors, converts incoming Skir payload arrays into generated PHP DTOs, calls your typed methods, and converts returned DTOs back into Skir payload arrays.
+The method enum resolves back to `SkirMethods::getUser()`, so the Skir schema remains the source of truth while your IDE can autocomplete enum cases.
 
-The interface/provider pair remains available if you prefer binding `SkirProcedures` in the container and registering `SkirProcedureProvider`.
+The abstract procedure and interface/provider pair remain available as lower-level compatibility APIs.
 
 ## Namespaces and modules
 

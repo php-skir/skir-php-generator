@@ -138,6 +138,7 @@ export function generatePhpFiles(input: PhpGeneratorInput): GeneratedFile[] {
     ...recordFiles,
     ...Array.from(methodGroups.values()).flatMap((group) => [
       generateMethodsFile(group.context, group.methods),
+      generateMethodEnumFile(group.context, group.methods),
       generateClientFile(group.context, group.methods),
       generateProceduresFile(group.context, group.methods),
       generateAbstractProceduresFile(group.context, group.methods),
@@ -467,6 +468,47 @@ function generateMethodsFile(context: ModuleOutputContext, methods: readonly Ski
   };
 }
 
+function generateMethodEnumFile(context: ModuleOutputContext, methods: readonly SkirMethod[]): GeneratedFile {
+  const runtimeImports = [
+    "LaravelSkir\\Runtime\\MethodDescriptor",
+    "LaravelSkir\\Server\\Contracts\\SkirMethodReference",
+  ];
+  const className = methodEnumClassName(context);
+  const fileContext = fileOutputContext(context, className, runtimeImports);
+  const cases = methods.map((method) => `case ${toClassName(tokenText(method.name))};`).join("\n");
+  const matches = methods
+    .map((method) => `self::${toClassName(tokenText(method.name))} => SkirMethods::${toPropertyName(tokenText(method.name))}(),`)
+    .join("\n");
+
+  return {
+    path: outputPath(context, `${className}.php`),
+    code: [
+      "<?php",
+      "",
+      "declare(strict_types=1);",
+      "",
+      `namespace ${context.namespace};`,
+      "",
+      ...generateUseStatements(fileContext, runtimeImports),
+      "",
+      `enum ${className} implements SkirMethodReference`,
+      "{",
+      indent(cases),
+      "",
+      indent([
+        "public function descriptor(): MethodDescriptor",
+        "{",
+        "    return match ($this) {",
+        indent(indent(matches)),
+        "    };",
+        "}",
+      ].join("\n")),
+      "}",
+      "",
+    ].join("\n"),
+  };
+}
+
 function generateAllMethods(methods: readonly SkirMethod[]): string {
   return [
     "/** @return array<string, MethodDescriptor> */",
@@ -549,7 +591,7 @@ function generateClientMethod(method: SkirMethod, context: ModuleOutputContext):
 
 function generateProceduresFile(context: ModuleOutputContext, methods: readonly SkirMethod[]): GeneratedFile {
   const runtimeImports = [
-    "LaravelSkir\\Server\\RequestContext",
+    "LaravelSkir\\Server\\SkirContext",
   ];
   const fileContext = fileOutputContext(context, "SkirProcedures", runtimeImports);
   const procedureMethods = methods.map((method) => generateProcedureMethod(method, fileContext)).join("\n\n");
@@ -579,13 +621,13 @@ function generateProcedureMethod(method: SkirMethod, context: ModuleOutputContex
   const requestType = method.requestType ?? "string";
   const responseType = method.responseType ?? "string";
 
-  return `public function ${methodName}(${phpType(requestType, context)} $request, RequestContext $context): ${phpType(responseType, context)};`;
+  return `public function ${methodName}(${phpType(requestType, context)} $request, SkirContext $context): ${phpType(responseType, context)};`;
 }
 
 function generateAbstractProceduresFile(context: ModuleOutputContext, methods: readonly SkirMethod[]): GeneratedFile {
   const runtimeImports = [
     "LaravelSkir\\Server\\ProcedureProvider",
-    "LaravelSkir\\Server\\RequestContext",
+    "LaravelSkir\\Server\\SkirContext",
     "LaravelSkir\\Server\\SkirServer",
   ];
   const fileContext = fileOutputContext(context, "AbstractSkirProcedures", runtimeImports);
@@ -624,13 +666,13 @@ function generateAbstractProcedureMethod(method: SkirMethod, context: ModuleOutp
   const requestType = method.requestType ?? "string";
   const responseType = method.responseType ?? "string";
 
-  return `abstract public function ${methodName}(${phpType(requestType, context)} $request, RequestContext $context): ${phpType(responseType, context)};`;
+  return `abstract public function ${methodName}(${phpType(requestType, context)} $request, SkirContext $context): ${phpType(responseType, context)};`;
 }
 
 function generateProcedureProviderFile(context: ModuleOutputContext, methods: readonly SkirMethod[]): GeneratedFile {
   const runtimeImports = [
     "LaravelSkir\\Server\\ProcedureProvider",
-    "LaravelSkir\\Server\\RequestContext",
+    "LaravelSkir\\Server\\SkirContext",
     "LaravelSkir\\Server\\SkirServer",
   ];
   const fileContext = fileOutputContext(context, "SkirProcedureProvider", runtimeImports);
@@ -679,7 +721,7 @@ function generateProcedureRegistration(method: SkirMethod, context: ModuleOutput
   const response = valueToArrayExpression(responseType, "$response", context);
 
   return [
-    `$server->addMethod(SkirMethods::${methodName}(), function (mixed $request, RequestContext $context): mixed {`,
+    `$server->addMethod(SkirMethods::${methodName}(), function (mixed $request, SkirContext $context): mixed {`,
     `    $response = ${handlerTarget}->${methodName}(${request}, $context);`,
     "",
     `    return ${response};`,
@@ -1138,6 +1180,14 @@ function outputPath(context: ModuleOutputContext, fileName: string): string {
   }
 
   return `${context.pathPrefix}/${fileName}`;
+}
+
+function methodEnumClassName(context: ModuleOutputContext): string {
+  if (context.pathPrefix === "") {
+    return "SkirMethod";
+  }
+
+  return `${context.pathPrefix.split("/").map((part) => toClassName(part)).join("")}SkirMethod`;
 }
 
 function fileOutputContext(context: ModuleOutputContext, className: string, runtimeImports: readonly string[]): ModuleOutputContext {

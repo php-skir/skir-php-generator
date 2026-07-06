@@ -219,6 +219,7 @@ if ($method->name !== 'GetUser' || $method->number !== 3180856469) {
       "AbstractSkirProcedures.php",
       "Address.php",
       "HealthCheckRequest.php",
+      "SkirMethod.php",
       "SkirMethods.php",
       "SkirProcedureProvider.php",
       "SkirProcedures.php",
