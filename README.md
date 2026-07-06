@@ -2,19 +2,19 @@
 
 Generates framework-agnostic PHP data objects for Skir schemas.
 
-Generated PHP code uses `laravel-skir/runtime` for dense JSON serialization. If you use generated RPC clients, install `laravel-skir/client` as well.
+Generated PHP code uses `php-skir/runtime` for dense JSON serialization. If you use generated RPC clients, install `php-skir/client` as well.
 
 ## Installation
 
 ```bash
 npm install --save-dev skir-php-generator
-composer require laravel-skir/runtime
+composer require php-skir/runtime
 ```
 
 For generated typed RPC clients:
 
 ```bash
-composer require laravel-skir/client
+composer require php-skir/client
 ```
 
 ## Releasing
@@ -47,11 +47,11 @@ The generator emits readonly PHP classes for Skir structs and enum wrapper class
 
 SkirRPC methods are emitted in `SkirMethods.php` as `MethodDescriptor` instances. The generator also emits a module-scoped method enum such as `AdminSkirMethod.php` for attribute-based server routing.
 
-When a module defines SkirRPC methods, the generator also emits `SkirRpcClient.php`. It wraps `LaravelSkir\Client\SkirClient` and exposes typed methods:
+When a module defines SkirRPC methods, the generator also emits `SkirRpcClient.php`. It wraps `Skir\Client\SkirClient` and exposes typed methods:
 
 ```php
 use App\Skir\Admin\SkirRpcClient;
-use LaravelSkir\Client\SkirClient as TransportSkirClient;
+use Skir\Client\SkirClient as TransportSkirClient;
 
 $client = new SkirRpcClient(new TransportSkirClient('https://example.com/skir'));
 $user = $client->getUser($request);
@@ -59,14 +59,14 @@ $user = $client->getUser($request);
 
 For servers, the generator emits `AdminSkirMethod.php`, `AbstractSkirProcedures.php`, `SkirProcedures.php`, and `SkirProcedureProvider.php`.
 
-The recommended Laravel server path is to use the generated method enum with `laravel-skir/server` controller routing:
+The recommended Laravel server path is to use the generated method enum with `php-skir/server` controller routing:
 
 ```php
 use App\Skir\Admin\AdminSkirMethod;
 use App\Skir\Admin\GetUserRequest;
 use App\Skir\Admin\User;
-use LaravelSkir\Server\Attributes\SkirMethod;
-use LaravelSkir\Server\SkirContext;
+use Skir\Server\Attributes\SkirMethod;
+use Skir\Server\SkirContext;
 
 final class UserController
 {
@@ -86,7 +86,7 @@ Register the controller on a Skir endpoint:
 ```php
 use App\Skir\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
-use LaravelSkir\Server\Facades\Skir;
+use Skir\Server\Facades\Skir;
 
 Route::skirRpc('/api/skir', [
     Skir::controller(UserController::class),

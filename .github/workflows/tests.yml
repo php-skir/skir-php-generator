@@ -24,7 +24,7 @@ jobs:
       - name: Checkout runtime
         uses: actions/checkout@v4
         with:
-          repository: laravel-skir/runtime
+          repository: php-skir/runtime
           path: runtime
 
       - name: Setup PHP

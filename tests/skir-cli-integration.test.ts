@@ -12,7 +12,7 @@ describe("skir CLI integration", () => {
     const skirSourcePath = join(projectPath, "skir-src");
     const adminSkirSourcePath = join(skirSourcePath, "admin");
     const commonSkirSourcePath = join(skirSourcePath, "common");
-    const stubClientPath = join(projectPath, "stub-client", "LaravelSkir", "Client");
+    const stubClientPath = join(projectPath, "stub-client", "Skir", "Client");
     const generatedPath = join(projectPath, "generated", "skirout");
     const runtimePath = process.env.SKIR_RUNTIME_PATH ?? resolve("../runtime");
     const generatorPath = resolve("dist/index.js");
@@ -97,12 +97,12 @@ describe("skir CLI integration", () => {
           ],
           require: {
             php: "^8.3",
-            "laravel-skir/runtime": "*",
+            "php-skir/runtime": "*",
           },
           autoload: {
             "psr-4": {
               "App\\Skir\\": "generated/skirout/",
-              "LaravelSkir\\Client\\": "stub-client/LaravelSkir/Client/",
+              "Skir\\Client\\": "stub-client/Skir/Client/",
             },
           },
           config: {
@@ -122,9 +122,9 @@ describe("skir CLI integration", () => {
 
 declare(strict_types=1);
 
-namespace LaravelSkir\\Client;
+namespace Skir\\Client;
 
-use LaravelSkir\\Runtime\\MethodDescriptor;
+use Skir\\Runtime\\MethodDescriptor;
 
 final class SkirClient
 {
@@ -153,7 +153,7 @@ use App\\Skir\\Admin\\SkirRpcClient;
 use App\\Skir\\Admin\\SubscriptionStatus;
 use App\\Skir\\Admin\\UsersUser;
 use App\\Skir\\Common\\Address;
-use LaravelSkir\\Client\\SkirClient as TransportSkirClient;
+use Skir\\Client\\SkirClient as TransportSkirClient;
 
 $user = new UsersUser(
     userId: 400,

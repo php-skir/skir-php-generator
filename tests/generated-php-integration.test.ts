@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { generatePhpFiles } from "../src/generator.js";
 
 describe("generated PHP", () => {
-  it("round-trips dense JSON through laravel-skir/runtime", () => {
+  it("round-trips dense JSON through php-skir/runtime", () => {
     const projectPath = mkdtempSync(join(tmpdir(), "skir-php-generator-"));
     const sourcePath = join(projectPath, "src");
     const runtimePath = process.env.SKIR_RUNTIME_PATH ?? resolve("../runtime");
@@ -30,7 +30,7 @@ describe("generated PHP", () => {
           ],
           require: {
             php: "^8.3",
-            "laravel-skir/runtime": "*",
+            "php-skir/runtime": "*",
           },
           autoload: {
             "psr-4": {
