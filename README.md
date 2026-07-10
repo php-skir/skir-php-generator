@@ -1,13 +1,13 @@
 # Skir PHP Generator
 
-Generates framework-agnostic PHP data objects for Skir schemas.
+Generates framework-agnostic PHP data objects, RPC clients, and server procedure contracts from Skir schemas.
 
-Generated PHP code uses `php-skir/runtime` for dense JSON serialization. If you use generated RPC clients, install `php-skir/client` as well.
+Generated PHP uses `php-skir/runtime` for dense JSON serialization. Install `php-skir/client` when using generated RPC clients and `php-skir/server` when using generated server contracts.
 
 ## Installation
 
 ```bash
-npm install --save-dev skir-php-generator
+npm install --save-dev skir skir-php-generator
 composer require php-skir/runtime
 ```
 
@@ -17,24 +17,96 @@ For generated typed RPC clients:
 composer require php-skir/client
 ```
 
-## Releasing
+For generated server contracts:
 
-Create a GitHub release for the version in `package.json`. The release workflow reruns type checks, build, package validation, and tests before publishing to npm with provenance. It expects an `NPM_TOKEN` repository secret.
+```bash
+composer require php-skir/server
+```
 
-## Usage with Skir
+## Configure Skir
 
-Add the generator to `skir.yml`:
+Add the PHP generator to the root `skir.yml`:
 
 ```yaml
 generators:
-  php:
-    package: skir-php-generator
-    output: generated/php
+  - mod: skir-php-generator
+    outDir: generated/php/skirout
     config:
-      namespace: App\Skir
+      namespace: Skir
 ```
 
-Then run the Skir generator command for your project.
+The `generators` value uses Skir's current array syntax. Skir owns the configured `outDir` and may replace generated files there, so do not store handwritten PHP in that directory. Keep each generator in a dedicated output directory whose path ends in `/skirout`; the suffix identifies it as generator-owned output.
+
+The root namespace defaults to `Skir`, so the `config` block can be omitted when that default is suitable. Schema directories become PHP subnamespaces and output directories:
+
+```text
+health/health.skir -> generated/php/skirout/Health/HealthRequest.php
+                   -> Skir\Health\HealthRequest
+```
+
+A separate `Generated` namespace segment is unnecessary. The dedicated `generated/php/skirout` directory already separates generated code from handwritten application code, while the short `Skir` namespace keeps imports clear.
+
+Every emitted PHP file contains a `DO NOT EDIT` banner. Change the `.skir` source or generator configuration and regenerate instead of editing generated PHP.
+
+## Generate and configure Composer
+
+Run generation before configuring Composer because the configurator verifies that every output directory already exists:
+
+```bash
+npx skir gen
+npx skir-php-generator configure-composer
+composer dump-autoload
+```
+
+`configure-composer` reads `skir.yml` and `composer.json` from the current project root. It finds the exact `mod: skir-php-generator` entry, normalizes the namespace and output path, and adds the matching Composer PSR-4 mapping. It prints whether the mapping was added or already unchanged.
+
+The command only updates `composer.json`. It does not run Composer, so run `composer dump-autoload` afterward. Use `--root <dir>` for another project root or `--mod <module>` when the generator's `mod` is an exact alternative identifier such as a local file URL:
+
+```bash
+npx skir-php-generator configure-composer --root ../api --mod file:///path/to/skir-php-generator/dist/index.js
+```
+
+The operation is idempotent. An existing equivalent mapping is left byte-for-byte unchanged. If the namespace prefix already points somewhere else, the command exits with an error and does not modify `composer.json`. It also stops with a useful error when `skir.yml` or `composer.json` is missing or invalid, the matching generator configuration is missing or invalid, an output path escapes the project root, or a generated output directory does not exist.
+
+When `outDir` is an ordered array, the configurator preserves that order in Composer's array-valued PSR-4 mapping.
+
+### Package script automation
+
+The workflow can be kept in `package.json`:
+
+```json
+{
+  "scripts": {
+    "generate:skir": "skir gen && skir-php-generator configure-composer && composer dump-autoload"
+  }
+}
+```
+
+Then run:
+
+```bash
+npm run generate:skir
+```
+
+### Manual Composer mapping
+
+To configure Composer manually, map the root namespace to the same generator-owned `outDir` and include trailing slashes:
+
+```json
+{
+  "autoload": {
+    "psr-4": {
+      "Skir\\": "generated/php/skirout/"
+    }
+  }
+}
+```
+
+After editing `composer.json`, run:
+
+```bash
+composer dump-autoload
+```
 
 ## Generated PHP
 
@@ -45,68 +117,22 @@ The generator emits readonly PHP classes for Skir structs and enum wrapper class
 - `toDenseJson()` and `fromDenseJson()` for dense JSON payloads.
 - `toSkirValue()` and `fromSkirValue()` on generated enum classes.
 
-SkirRPC methods are emitted in `SkirMethods.php` as `MethodDescriptor` instances. The generator also emits a module-scoped method enum such as `AdminSkirMethod.php` for attribute-based server routing.
+SkirRPC methods are emitted in `SkirMethods.php` as `MethodDescriptor` instances. The generator also emits a module-scoped method enum such as `AdminSkirMethod.php` for typed server routing.
 
-When a module defines SkirRPC methods, the generator also emits `SkirRpcClient.php`. It wraps `Skir\Client\SkirClient` and exposes typed methods:
+When a module defines SkirRPC methods, the generator emits `SkirRpcClient.php`. It wraps `Skir\Client\SkirClient` and exposes typed methods:
 
 ```php
-use App\Skir\Admin\SkirRpcClient;
+use Skir\Admin\SkirRpcClient;
 use Skir\Client\SkirClient as TransportSkirClient;
 
 $client = new SkirRpcClient(new TransportSkirClient('https://example.com/skir'));
 $user = $client->getUser($request);
 ```
 
-For servers, the generator emits `AdminSkirMethod.php`, `AbstractSkirProcedures.php`, `SkirProcedures.php`, and `SkirProcedureProvider.php`.
+For servers, the generator emits a module method enum, `AbstractSkirProcedures.php`, `SkirProcedures.php`, and `SkirProcedureProvider.php`.
 
-The recommended Laravel server path is to use the generated method enum with `php-skir/server` controller routing:
+When two generated records would otherwise use the same PHP class name in one namespace, the generator prefixes each class with its module basename to keep output deterministic.
 
-```php
-use App\Skir\Admin\AdminSkirMethod;
-use App\Skir\Admin\GetUserRequest;
-use App\Skir\Admin\User;
-use Skir\Server\Attributes\SkirMethod;
-use Skir\Server\SkirContext;
+## Releasing
 
-final class UserController
-{
-    #[SkirMethod(AdminSkirMethod::GetUser)]
-    public function get(GetUserRequest $request, SkirContext $context): User
-    {
-        return new User(
-            userId: $request->userId,
-            name: 'Maxim',
-        );
-    }
-}
-```
-
-Register the controller on a Skir endpoint:
-
-```php
-use App\Skir\Controllers\UserController;
-use Illuminate\Support\Facades\Route;
-use Skir\Server\Facades\Skir;
-
-Route::skirRpc('/api/skir', [
-    Skir::controller(UserController::class),
-]);
-```
-
-The method enum resolves back to `SkirMethods::getUser()`, so the Skir schema remains the source of truth while your IDE can autocomplete enum cases.
-
-The abstract procedure and interface/provider pair remain available as lower-level compatibility APIs.
-
-## Namespaces and modules
-
-The configured namespace defaults to `App\Skir`. Module directories become PHP subnamespaces and output directories:
-
-```text
-admin/users.skir -> App\Skir\Admin
-```
-
-When two generated records would otherwise use the same PHP class name in the same namespace, the generator prefixes the class with the module basename to keep output deterministic.
-
-## Current scope
-
-This package generates framework-agnostic PHP DTOs, method descriptors, typed client adapters, and Laravel Skir server procedure adapters. Laravel-specific data objects and server routing live in separate packages.
+Create a GitHub release for the version in `package.json`. The release workflow reruns type checks, build, package validation, and tests before publishing to npm with provenance. It expects an `NPM_TOKEN` repository secret.
