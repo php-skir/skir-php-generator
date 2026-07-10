@@ -32,7 +32,7 @@ describe("skir CLI integration", () => {
         `  - mod: ${pathToFileURL(generatorPath).href}`,
         "    outDir: generated/skirout",
         "    config:",
-        '      namespace: "App\\\\Skir"',
+        '      namespace: "Skir"',
         "",
       ].join("\n"),
     );
@@ -101,7 +101,6 @@ describe("skir CLI integration", () => {
           },
           autoload: {
             "psr-4": {
-              "App\\Skir\\": "generated/skirout/",
               "Skir\\Client\\": "stub-client/Skir/Client/",
             },
           },
@@ -148,11 +147,11 @@ declare(strict_types=1);
 
 require __DIR__.'/vendor/autoload.php';
 
-use App\\Skir\\Admin\\SkirMethods;
-use App\\Skir\\Admin\\SkirRpcClient;
-use App\\Skir\\Admin\\SubscriptionStatus;
-use App\\Skir\\Admin\\UsersUser;
-use App\\Skir\\Common\\Address;
+use Skir\\Admin\\SkirMethods;
+use Skir\\Admin\\SkirRpcClient;
+use Skir\\Admin\\SubscriptionStatus;
+use Skir\\Admin\\UsersUser;
+use Skir\\Common\\Address;
 use Skir\\Client\\SkirClient as TransportSkirClient;
 
 $user = new UsersUser(
@@ -239,12 +238,20 @@ if (! $rpcUser instanceof UsersUser || $rpcUser->name !== 'John Doe') {
       const providerCode = readFileSync(join(generatedPath, "Admin", "SkirProcedureProvider.php"), "utf8");
       const clientCode = readFileSync(join(generatedPath, "Admin", "SkirRpcClient.php"), "utf8");
 
-      expect(userCode).toContain("use App\\Skir\\Common\\Address;");
-      expect(userCode).not.toContain("\\App\\Skir\\Common\\Address");
+      expect(userCode).toContain("use Skir\\Common\\Address;");
+      expect(userCode).not.toContain("\\Skir\\Common\\Address");
       expect(methodsCode).toContain("requestType: UsersUser::skirType()");
       expect(methodsCode).toContain("responseType: UsersUser::skirType()");
-      expect(providerCode).toContain("namespace App\\Skir\\Admin;");
+      expect(providerCode).toContain("namespace Skir\\Admin;");
       expect(clientCode).toContain("public function getUser(UsersUser $request): UsersUser");
+
+      execFileSync("node", [resolve("dist/cli.js"), "configure-composer", "--root", projectPath, "--mod", pathToFileURL(generatorPath).href], {
+        cwd: resolve("."),
+        stdio: "pipe",
+      });
+
+      expect(JSON.parse(readFileSync(join(projectPath, "composer.json"), "utf8"))
+        .autoload["psr-4"]["Skir\\"]).toBe("generated/skirout/");
 
       execFileSync("composer", ["install", "--no-interaction", "--no-progress"], {
         cwd: projectPath,

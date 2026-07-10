@@ -1,19 +1,13 @@
 import { type CodeGenerator } from "skir-internal";
-import { z } from "zod";
 
+import { GeneratorConfig, GENERATOR_MODULE } from "./config.js";
 import { generatePhpFiles } from "./generator.js";
 
-const Config = z.strictObject({
-  namespace: z.string().default("App\\Skir"),
-});
+class PhpGenerator implements CodeGenerator<GeneratorConfig> {
+  readonly id = GENERATOR_MODULE;
+  readonly configType = GeneratorConfig;
 
-type Config = z.infer<typeof Config>;
-
-class PhpGenerator implements CodeGenerator<Config> {
-  readonly id = "skir-php-generator";
-  readonly configType = Config;
-
-  generateCode(input: CodeGenerator.Input<Config>): CodeGenerator.Output {
+  generateCode(input: CodeGenerator.Input<GeneratorConfig>): CodeGenerator.Output {
     return {
       files: generatePhpFiles(input),
     };
@@ -23,4 +17,3 @@ class PhpGenerator implements CodeGenerator<Config> {
 export const GENERATOR = new PhpGenerator();
 
 export { generatePhpFiles };
-
