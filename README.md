@@ -177,7 +177,7 @@ The current schema version is `1`:
 }
 ```
 
-`methodEnum`, record request and response types, and their class fields are fully qualified PHP names without a leading backslash. Scalar and union types use PHP type syntax and have a `null` class field. Optional record types keep the underlying record class in `requestClass` or `responseClass`. Names are derived from the actual generated record location, including nested and cross-module references.
+`methodEnum` and record request and response types are fully qualified PHP names without a leading backslash. `requestClass` is non-null only when the request is a generated object/struct DTO that can be hydrated through a Form Request; enum and other value requests use `null` while `requestType` retains their PHP type. `responseClass` identifies a generated response class that can be imported. Scalar and union types use PHP type syntax and have a `null` class field. Optional object/struct requests keep their underlying DTO in `requestClass`. Names are derived from the actual generated record location, including nested and cross-module references.
 
 Run `npx skir gen` after changing a schema. No extra generator option is required to emit the manifest.
 

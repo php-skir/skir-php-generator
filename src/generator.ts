@@ -191,7 +191,7 @@ function generateServerManifestMethod(
     enumCase: toClassName(name),
     phpMethod: toPropertyName(name),
     requestType: manifestPhpType(requestType, context),
-    requestClass: manifestPhpClass(requestType, context),
+    requestClass: manifestObjectRequestClass(requestType, context),
     responseType: manifestPhpType(responseType, context),
     responseClass: manifestPhpClass(responseType, context),
   };
@@ -1058,6 +1058,18 @@ function manifestPhpClass(type: SkirType, context: ModuleOutputContext): string 
   }
 
   return fullyQualifiedRecordTypeClassName(type, context);
+}
+
+function manifestObjectRequestClass(type: SkirType, context: ModuleOutputContext): string | null {
+  const requestType = typeKind(type) === "optional" ? optionalInnerType(type) : type;
+
+  if (typeKind(requestType) !== "record") {
+    return null;
+  }
+
+  return isEnumRecordReference(requestType, context)
+    ? null
+    : fullyQualifiedRecordTypeClassName(requestType, context);
 }
 
 function fullyQualifiedRecordTypeClassName(type: SkirType, context: ModuleOutputContext): string {

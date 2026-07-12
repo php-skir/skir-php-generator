@@ -261,6 +261,11 @@ describe("generatePhpFiles", () => {
               name: "GetUserResponse",
               fields: [],
             },
+            {
+              recordType: "enum",
+              name: "UserScope",
+              fields: [{ kind: "field", name: "all", number: 0 }],
+            },
           ],
           methods: [
             {
@@ -269,6 +274,16 @@ describe("generatePhpFiles", () => {
               number: 1,
               requestType: { kind: "record", name: "GetUserRequest" },
               responseType: { kind: "record", name: "GetUserResponse" },
+            },
+            {
+              kind: "method",
+              name: "FindUsers",
+              number: 3,
+              requestType: {
+                kind: "optional",
+                other: { kind: "record", name: "UserScope", recordType: "enum" },
+              },
+              responseType: { kind: "record", name: "UserScope", recordType: "enum" },
             },
           ],
         },
@@ -308,6 +323,15 @@ describe("generatePhpFiles", () => {
               requestClass: "Skir\\Admin\\GetUserRequest",
               responseType: "Skir\\Admin\\GetUserResponse",
               responseClass: "Skir\\Admin\\GetUserResponse",
+            },
+            {
+              name: "FindUsers",
+              enumCase: "FindUsers",
+              phpMethod: "findUsers",
+              requestType: "?Skir\\Admin\\UserScope",
+              requestClass: null,
+              responseType: "Skir\\Admin\\UserScope",
+              responseClass: "Skir\\Admin\\UserScope",
             },
           ],
         },
@@ -354,6 +378,13 @@ describe("generatePhpFiles", () => {
       name: "Metadata",
       fields: [],
     };
+    const scopeRecord = {
+      kind: "record",
+      key: "common/scope.skir:0",
+      recordType: "enum" as const,
+      name: "Scope",
+      fields: [],
+    };
     const files = generatePhpFiles({
       config: {
         namespace: "Skir",
@@ -375,6 +406,15 @@ describe("generatePhpFiles", () => {
             record: metadataRecord,
             recordAncestors: [envelopeRecord, metadataRecord],
             modulePath: "admin/envelope.skir",
+          },
+        ],
+        [
+          scopeRecord.key,
+          {
+            kind: "record-location",
+            record: scopeRecord,
+            recordAncestors: [scopeRecord],
+            modulePath: "common/scope.skir",
           },
         ],
       ]),
@@ -414,6 +454,17 @@ describe("generatePhpFiles", () => {
               },
               responseType: { kind: "bool" },
             },
+            {
+              kind: "method",
+              name: "FindByScope",
+              number: 3,
+              requestType: {
+                kind: "record",
+                key: scopeRecord.key,
+                nameParts: [{ token: { text: "Scope" } }],
+              },
+              responseType: { kind: "bool" },
+            },
           ],
         },
       ],
@@ -443,6 +494,15 @@ describe("generatePhpFiles", () => {
               phpMethod: "maybeResolveAddress",
               requestType: "?Skir\\Common\\Address",
               requestClass: "Skir\\Common\\Address",
+              responseType: "bool",
+              responseClass: null,
+            },
+            {
+              name: "FindByScope",
+              enumCase: "FindByScope",
+              phpMethod: "findByScope",
+              requestType: "Skir\\Common\\Scope",
+              requestClass: null,
               responseType: "bool",
               responseClass: null,
             },
