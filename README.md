@@ -141,6 +141,46 @@ For servers, the generator emits a module method enum, `AbstractSkirProcedures.p
 
 When two generated records would otherwise use the same PHP class name in one namespace, the generator prefixes each class with its module basename to keep output deterministic.
 
+## Server scaffolding manifest
+
+Each generation run writes `skir-server-manifest.json` at the root of the configured `outDir`. For the configuration above, the path is:
+
+```text
+generated/php/skirout/skir-server-manifest.json
+```
+
+The manifest is consumed by the [`php-skir/server`](https://github.com/php-skir/server) Laravel scaffolding commands. Keep the manifest path in the server package configuration aligned with the generator `outDir`.
+
+The current schema version is `1`:
+
+```json
+{
+  "version": 1,
+  "generator": "skir-php-generator",
+  "modules": [
+    {
+      "name": "Admin",
+      "methodEnum": "Skir\\Admin\\AdminSkirMethod",
+      "methods": [
+        {
+          "name": "GetUser",
+          "enumCase": "GetUser",
+          "phpMethod": "getUser",
+          "requestType": "Skir\\Admin\\GetUserRequest",
+          "requestClass": "Skir\\Admin\\GetUserRequest",
+          "responseType": "Skir\\Admin\\GetUserResponse",
+          "responseClass": "Skir\\Admin\\GetUserResponse"
+        }
+      ]
+    }
+  ]
+}
+```
+
+`methodEnum`, record request and response types, and their class fields are fully qualified PHP names without a leading backslash. Scalar and union types use PHP type syntax and have a `null` class field. Optional record types keep the underlying record class in `requestClass` or `responseClass`. Names are derived from the actual generated record location, including nested and cross-module references.
+
+Run `npx skir gen` after changing a schema. No extra generator option is required to emit the manifest.
+
 ## Releasing
 
 Create a GitHub release for the version in `package.json`. The release workflow reruns type checks, build, package validation, and tests before publishing to npm with provenance. It expects an `NPM_TOKEN` repository secret.
