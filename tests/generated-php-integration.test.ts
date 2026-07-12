@@ -226,6 +226,7 @@ if ($method->name !== 'GetUser' || $method->number !== 3180856469) {
       "SkirRpcClient.php",
       "SubscriptionStatus.php",
       "User.php",
+      "skir-server-manifest.json",
     ]);
   }, 60_000);
 });

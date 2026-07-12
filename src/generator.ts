@@ -1,4 +1,9 @@
-import { GeneratorConfig, type GeneratorConfigInput } from "./config.js";
+import { GeneratorConfig, GENERATOR_MODULE, type GeneratorConfigInput } from "./config.js";
+import {
+  generateServerManifestFile,
+  type ServerManifestMethod,
+  type ServerManifestModule,
+} from "./server-manifest.js";
 
 export const PHP_FILE_HEADER = [
   "/**",
@@ -143,9 +148,11 @@ export function generatePhpFiles(input: PhpGeneratorInput): GeneratedFile[] {
     }
   }
 
+  const groupedMethods = Array.from(methodGroups.values());
+
   return [
     ...recordFiles,
-    ...Array.from(methodGroups.values()).flatMap((group) => [
+    ...groupedMethods.flatMap((group) => [
       generateMethodsFile(group.context, group.methods),
       generateMethodEnumFile(group.context, group.methods),
       generateClientFile(group.context, group.methods),
@@ -153,7 +160,41 @@ export function generatePhpFiles(input: PhpGeneratorInput): GeneratedFile[] {
       generateAbstractProceduresFile(group.context, group.methods),
       generateProcedureProviderFile(group.context, group.methods),
     ]),
+    generateServerManifestFile(
+      GENERATOR_MODULE,
+      groupedMethods.map((group) => generateServerManifestModule(group.context, group.methods)),
+    ),
   ];
+}
+
+function generateServerManifestModule(
+  context: ModuleOutputContext,
+  methods: readonly SkirMethod[],
+): ServerManifestModule {
+  return {
+    name: context.pathPrefix === "" ? "Root" : context.pathPrefix.split("/").join("."),
+    methodEnum: `${context.namespace}\\${methodEnumClassName(context)}`,
+    methods: methods.map((method) => generateServerManifestMethod(context, method)),
+  };
+}
+
+function generateServerManifestMethod(
+  context: ModuleOutputContext,
+  method: SkirMethod,
+): ServerManifestMethod {
+  const name = tokenText(method.name);
+  const requestType = method.requestType ?? "string";
+  const responseType = method.responseType ?? "string";
+
+  return {
+    name,
+    enumCase: toClassName(name),
+    phpMethod: toPropertyName(name),
+    requestType: manifestPhpType(requestType, context),
+    requestClass: manifestPhpClass(requestType, context),
+    responseType: manifestPhpType(responseType, context),
+    responseClass: manifestPhpClass(responseType, context),
+  };
 }
 
 function generateStructFile(context: ModuleOutputContext, record: SkirRecord): GeneratedFile {
@@ -989,6 +1030,44 @@ function phpType(type: SkirType, context: ModuleOutputContext): string {
   }
 
   return "mixed";
+}
+
+function manifestPhpType(type: SkirType, context: ModuleOutputContext): string {
+  const kind = typeKind(type);
+
+  if (kind === "optional") {
+    const innerType = manifestPhpType(optionalInnerType(type), context);
+
+    return innerType.includes("|") ? `${innerType}|null` : `?${innerType}`;
+  }
+
+  if (kind === "record") {
+    return fullyQualifiedRecordTypeClassName(type, context);
+  }
+
+  return phpType(type, context);
+}
+
+function manifestPhpClass(type: SkirType, context: ModuleOutputContext): string | null {
+  if (typeKind(type) === "optional") {
+    return manifestPhpClass(optionalInnerType(type), context);
+  }
+
+  if (typeKind(type) !== "record") {
+    return null;
+  }
+
+  return fullyQualifiedRecordTypeClassName(type, context);
+}
+
+function fullyQualifiedRecordTypeClassName(type: SkirType, context: ModuleOutputContext): string {
+  const className = recordTypeClassName(type, context);
+
+  if (className.startsWith("\\")) {
+    return className.slice(1);
+  }
+
+  return `${context.namespace}\\${className}`;
 }
 
 function valueToArrayExpression(type: SkirType, expression: string, context: ModuleOutputContext): string {

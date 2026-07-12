@@ -94,9 +94,9 @@ describe("generatePhpFiles", () => {
 
     expect(files.find((file) => file.path === "Health/HealthRequest.php")?.code)
       .toContain("namespace Skir\\Health;");
-    expect(files).toHaveLength(8);
+    expect(files).toHaveLength(9);
 
-    for (const file of files) {
+    for (const file of files.filter((file) => file.path.endsWith(".php"))) {
       expect(file.code).toContain(`declare(strict_types=1);\n\n${banner}\n\nnamespace Skir\\Health;`);
       expect(file.code.match(/DO NOT EDIT/g)).toHaveLength(1);
     }
@@ -125,7 +125,7 @@ describe("generatePhpFiles", () => {
       ],
     });
 
-    expect(files).toHaveLength(1);
+    expect(files).toHaveLength(2);
     expect(files[0]?.path).toBe("User.php");
     expect(files[0]?.code).toContain("namespace App\\Skir;");
     expect(files[0]?.code).toContain("final readonly class User");
@@ -181,7 +181,7 @@ describe("generatePhpFiles", () => {
       ],
     });
 
-    expect(files).toHaveLength(1);
+    expect(files).toHaveLength(2);
     expect(files[0]?.path).toBe("SubscriptionStatus.php");
     expect(files[0]?.code).toContain("final readonly class SubscriptionStatus");
     expect(files[0]?.code).toContain("public static function free(): self");
@@ -240,6 +240,96 @@ describe("generatePhpFiles", () => {
     expect(methodFile?.code).toContain("number: 3180856469");
     expect(methodFile?.code).toContain("requestType: GetUserRequest::skirType()");
     expect(methodFile?.code).toContain("responseType: User::skirType()");
+  });
+
+  it("generates the standard PHP server manifest", () => {
+    const files = generatePhpFiles({
+      config: {
+        namespace: "Skir",
+      },
+      modules: [
+        {
+          path: "admin/users.skir",
+          records: [
+            {
+              kind: "struct",
+              name: "GetUserRequest",
+              fields: [],
+            },
+            {
+              kind: "struct",
+              name: "GetUserResponse",
+              fields: [],
+            },
+          ],
+          methods: [
+            {
+              kind: "method",
+              name: "GetUser",
+              number: 1,
+              requestType: { kind: "record", name: "GetUserRequest" },
+              responseType: { kind: "record", name: "GetUserResponse" },
+            },
+          ],
+        },
+        {
+          path: "health.skir",
+          methods: [
+            {
+              kind: "method",
+              name: "CheckHealth",
+              number: 2,
+              requestType: { kind: "string" },
+              responseType: {
+                kind: "optional",
+                other: { kind: "int64" },
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const manifestFile = files.find((file) => file.path === "skir-server-manifest.json");
+
+    expect(manifestFile).toBeDefined();
+    expect(JSON.parse(manifestFile?.code ?? "")).toEqual({
+      version: 1,
+      generator: "skir-php-generator",
+      modules: [
+        {
+          name: "Admin",
+          methodEnum: "Skir\\Admin\\AdminSkirMethod",
+          methods: [
+            {
+              name: "GetUser",
+              enumCase: "GetUser",
+              phpMethod: "getUser",
+              requestType: "Skir\\Admin\\GetUserRequest",
+              requestClass: "Skir\\Admin\\GetUserRequest",
+              responseType: "Skir\\Admin\\GetUserResponse",
+              responseClass: "Skir\\Admin\\GetUserResponse",
+            },
+          ],
+        },
+        {
+          name: "Root",
+          methodEnum: "Skir\\SkirMethod",
+          methods: [
+            {
+              name: "CheckHealth",
+              enumCase: "CheckHealth",
+              phpMethod: "checkHealth",
+              requestType: "string",
+              requestClass: null,
+              responseType: "int|string|null",
+              responseClass: null,
+            },
+          ],
+        },
+      ],
+    });
+    expect(manifestFile?.code.endsWith("\n")).toBe(true);
+    expect(files.at(-1)?.path).toBe("skir-server-manifest.json");
   });
 
   it("generates a typed SkirRPC client for SkirRPC methods", () => {

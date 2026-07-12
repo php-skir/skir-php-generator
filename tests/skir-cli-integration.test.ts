@@ -233,6 +233,21 @@ if (! $rpcUser instanceof UsersUser || $rpcUser->name !== 'John Doe') {
 
       expect(existsSync(join(generatedPath, "Admin", "User.php"))).toBe(false);
 
+      const manifestPath = join(generatedPath, "skir-server-manifest.json");
+
+      expect(existsSync(manifestPath)).toBe(true);
+
+      const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+
+      expect(manifest.modules.find((module: { name: string }) => module.name === "Admin")?.methods)
+        .toContainEqual(expect.objectContaining({
+          name: "GetUser",
+          requestType: "Skir\\Admin\\UsersUser",
+          requestClass: "Skir\\Admin\\UsersUser",
+          responseType: "Skir\\Admin\\UsersUser",
+          responseClass: "Skir\\Admin\\UsersUser",
+        }));
+
       const userCode = readFileSync(join(generatedPath, "Admin", "UsersUser.php"), "utf8");
       const methodsCode = readFileSync(join(generatedPath, "Admin", "SkirMethods.php"), "utf8");
       const providerCode = readFileSync(join(generatedPath, "Admin", "SkirProcedureProvider.php"), "utf8");
