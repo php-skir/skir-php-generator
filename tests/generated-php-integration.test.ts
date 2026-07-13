@@ -122,7 +122,7 @@ describe("generated PHP", () => {
       generator: "skir-php-generator",
       modules: [
         {
-          name: "Root",
+          name: "_Root",
           methodEnum: "App\\Skir\\SkirMethod",
           methods: [
             {

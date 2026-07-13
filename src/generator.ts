@@ -115,6 +115,7 @@ interface ImportRegistry {
 
 export function generatePhpFiles(input: PhpGeneratorInput): GeneratedFile[] {
   const { namespace } = GeneratorConfig.parse(input.config ?? {});
+  assertDistinctModuleOutputPaths(namespace, input.modules);
   const classNames = buildClassNameRegistry(namespace, input.modules);
   const methodGroups = new Map<string, { context: ModuleOutputContext; methods: SkirMethod[] }>();
   const recordFiles: GeneratedFile[] = [];
@@ -172,10 +173,39 @@ function generateServerManifestModule(
   methods: readonly SkirMethod[],
 ): ServerManifestModule {
   return {
-    name: context.pathPrefix === "" ? "Root" : context.pathPrefix.split("/").join("."),
+    name: moduleIdentity(context),
     methodEnum: `${context.namespace}\\${methodEnumClassName(context)}`,
     methods: methods.map((method) => generateServerManifestMethod(context, method)),
   };
+}
+
+function assertDistinctModuleOutputPaths(rootNamespace: string, modules: readonly SkirModule[]): void {
+  const sourceDirectoriesByOutputPath = new Map<string, string>();
+
+  for (const module of modules) {
+    const sourceDirectory = module.path.split("/").slice(0, -1).join("/");
+    const context = outputContextForModule(rootNamespace, module);
+    const outputPathKey = context.pathPrefix.toLowerCase();
+    const existingSourceDirectory = sourceDirectoriesByOutputPath.get(outputPathKey);
+
+    if (existingSourceDirectory === undefined) {
+      sourceDirectoriesByOutputPath.set(outputPathKey, sourceDirectory);
+
+      continue;
+    }
+
+    if (existingSourceDirectory !== sourceDirectory) {
+      throw new Error(
+        `Module namespace normalization collision for ${moduleIdentity(context)}: source directories ${existingSourceDirectory || "<root>"} and ${sourceDirectory || "<root>"} produce the same PHP namespace.`,
+      );
+    }
+  }
+}
+
+function moduleIdentity(context: ModuleOutputContext): string {
+  return context.pathPrefix === ""
+    ? "_Root"
+    : context.pathPrefix.split("/").join(".");
 }
 
 function generateServerManifestMethod(
@@ -1268,7 +1298,7 @@ function outputContextForModulePath(rootNamespace: string, modulePath: string, r
   const directoryParts = modulePath
     .split("/")
     .slice(0, -1)
-    .map((part) => toClassName(part))
+    .map((part) => toPhpNamespaceSegment(part))
     .filter((part) => part !== "");
 
   if (directoryParts.length === 0) {
@@ -1288,6 +1318,10 @@ function outputContextForModulePath(rootNamespace: string, modulePath: string, r
     recordMap,
     classNames,
   };
+}
+
+function toPhpNamespaceSegment(name: string): string {
+  return toClassName(name.replace(/[^A-Za-z0-9]+/g, "_"));
 }
 
 function outputPath(context: ModuleOutputContext, fileName: string): string {

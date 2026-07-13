@@ -336,7 +336,7 @@ describe("generatePhpFiles", () => {
           ],
         },
         {
-          name: "Root",
+          name: "_Root",
           methodEnum: "Skir\\SkirMethod",
           methods: [
             {
@@ -354,6 +354,134 @@ describe("generatePhpFiles", () => {
     });
     expect(manifestFile?.code.endsWith("\n")).toBe(true);
     expect(files.at(-1)?.path).toBe("skir-server-manifest.json");
+  });
+
+  it("uses normalized PHP namespace segments for manifest module identities", () => {
+    const files = generatePhpFiles({
+      config: {
+        namespace: "Skir",
+      },
+      modules: [
+        {
+          path: "user-profile/profile.skir",
+          records: [
+            { kind: "struct", name: "ProfileRequest", fields: [] },
+            { kind: "struct", name: "ProfileResponse", fields: [] },
+          ],
+          methods: [
+            {
+              kind: "method",
+              name: "GetProfile",
+              number: 1,
+              requestType: { kind: "record", name: "ProfileRequest" },
+              responseType: { kind: "record", name: "ProfileResponse" },
+            },
+          ],
+        },
+        {
+          path: "admin/users/users.skir",
+          methods: [
+            { kind: "method", name: "ListUsers", number: 2 },
+          ],
+        },
+        {
+          path: "admin.users/users.skir",
+          methods: [
+            { kind: "method", name: "ListAdmins", number: 3 },
+          ],
+        },
+        {
+          path: "health.skir",
+          methods: [
+            { kind: "method", name: "Health", number: 4 },
+          ],
+        },
+        {
+          path: "Root/root.skir",
+          methods: [
+            { kind: "method", name: "DirectoryRoot", number: 5 },
+          ],
+        },
+      ],
+    });
+    const manifestFile = files.find((file) => file.path === "skir-server-manifest.json");
+    const manifest = JSON.parse(manifestFile?.code ?? "");
+
+    expect(manifest.modules.map((module: { name: string }) => module.name)).toEqual([
+      "UserProfile",
+      "Admin.Users",
+      "AdminUsers",
+      "_Root",
+      "Root",
+    ]);
+    expect(manifest.modules.flatMap((module: { name: string; methods: { name: string }[] }) =>
+      module.methods.map((method) => `${module.name}.${method.name}`))).toEqual([
+      "UserProfile.GetProfile",
+      "Admin.Users.ListUsers",
+      "AdminUsers.ListAdmins",
+      "_Root.Health",
+      "Root.DirectoryRoot",
+    ]);
+    expect(manifest.modules[0]).toMatchObject({
+      methodEnum: "Skir\\UserProfile\\UserProfileSkirMethod",
+      methods: [
+        {
+          requestType: "Skir\\UserProfile\\ProfileRequest",
+          requestClass: "Skir\\UserProfile\\ProfileRequest",
+          responseType: "Skir\\UserProfile\\ProfileResponse",
+          responseClass: "Skir\\UserProfile\\ProfileResponse",
+        },
+      ],
+    });
+    expect(manifest.modules[1]).toMatchObject({
+      methodEnum: "Skir\\Admin\\Users\\AdminUsersSkirMethod",
+    });
+    expect(manifest.modules[2]).toMatchObject({
+      methodEnum: "Skir\\AdminUsers\\AdminUsersSkirMethod",
+    });
+    expect(manifest.modules[3]).toMatchObject({
+      methodEnum: "Skir\\SkirMethod",
+    });
+    expect(manifest.modules[4]).toMatchObject({
+      methodEnum: "Skir\\Root\\RootSkirMethod",
+    });
+  });
+
+  it("rejects distinct source directories that normalize to the same module identity", () => {
+    expect(() => generatePhpFiles({
+      modules: [
+        {
+          path: "user-profile/profile.skir",
+          methods: [
+            { kind: "method", name: "GetProfile", number: 1 },
+          ],
+        },
+        {
+          path: "user_profile/account.skir",
+          methods: [
+            { kind: "method", name: "GetAccount", number: 2 },
+          ],
+        },
+      ],
+    })).toThrow(/UserProfile.*user-profile.*user_profile/i);
+  });
+
+  it("reserves the leading underscore module identity for root-level methods", () => {
+    const files = generatePhpFiles({
+      modules: [
+        {
+          path: "_root/profile.skir",
+          methods: [
+            { kind: "method", name: "GetProfile", number: 1 },
+          ],
+        },
+      ],
+    });
+    const manifestFile = files.find((file) => file.path === "skir-server-manifest.json");
+    const manifest = JSON.parse(manifestFile?.code ?? "");
+
+    expect(manifest.modules[0]?.name).toBe("Root");
+    expect(manifest.modules[0]?.name).not.toBe("_Root");
   });
 
   it("uses record locations for cross-module, nested, and optional manifest types", () => {
