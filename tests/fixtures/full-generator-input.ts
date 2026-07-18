@@ -176,5 +176,6 @@ export const fullGeneratorInput: PhpGeneratorInput = {
   recordMap: new Map<string, SkirRecordLocation>([
     ["address-key", addressLocation],
     ["admin-user-key", userLocation],
+    ["subscription-status-key", subscriptionStatusLocation],
   ]),
 };
