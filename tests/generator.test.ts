@@ -133,6 +133,25 @@ describe("generatePhpFiles", () => {
     expect(files[0]?.code).toContain("public string $name");
     expect(files[0]?.code).toContain("Field::removed(1)");
     expect(files[0]?.code).toContain("DenseJson::toJson(self::skirType(), $this->toArray())");
+    expect(files[0]?.code).toContain("use Skir\\Runtime\\BinaryFormat;");
+    expect(files[0]?.code).toContain("use Skir\\Runtime\\ReadableJson;");
+    expect(files[0]?.code).toContain([
+      "    public function toReadableJson(): string",
+      "    {",
+      "        return ReadableJson::toJson(self::skirType(), $this->toArray());",
+      "    }",
+      "",
+      "    public function toBytes(): string",
+      "    {",
+      "        return BinaryFormat::encode(self::skirType(), $this->toArray());",
+      "    }",
+      "",
+      "    public static function fromBytes(string $bytes): User",
+      "    {",
+      "        return self::fromArray(BinaryFormat::decode(self::skirType(), $bytes));",
+      "    }",
+      "}",
+    ].join("\n"));
   });
 
   it("generates instantiable PHP classes for empty Skir structs", () => {

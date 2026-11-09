@@ -8,7 +8,7 @@
 
 Generates framework-agnostic PHP data objects, RPC clients, and server procedure contracts from Skir schemas.
 
-Generated PHP uses `php-skir/runtime` for dense JSON serialization. Install `php-skir/client` when using generated RPC clients and `php-skir/server` when using generated server contracts.
+Generated PHP uses `php-skir/runtime` for dense JSON, readable JSON, and binary serialization. Install `php-skir/client` when using generated RPC clients and `php-skir/server` when using generated server contracts.
 
 The npm package uses [`@php-skir/generator-core`](https://github.com/php-skir/generator-core) at generation time for schema normalization, PHP naming and imports, shared enum and RPC rendering, server manifests, and Composer configuration. This package remains the framework-agnostic adapter: it owns the standard PHP data-object representation and conversions, while `php-skir/runtime` remains the Composer dependency used by the generated PHP at runtime.
 
@@ -130,8 +130,18 @@ The generator emits readonly PHP classes for Skir structs and enum wrapper class
 
 - `skirType()` for runtime type descriptors.
 - `toArray()` and `fromArray()` for PHP array conversion.
-- `toDenseJson()` and `fromDenseJson()` for dense JSON payloads.
+- `toDenseJson()` and `fromDenseJson()` for dense JSON payloads. `fromDenseJson()` also accepts readable JSON, so there is no separate `fromReadableJson()`.
+- `toReadableJson()` for readable JSON payloads.
+- `toBytes()` and `fromBytes()` for Skir binary payloads.
 - `toSkirValue()` and `fromSkirValue()` on generated enum classes.
+
+```php
+$json = $user->toReadableJson();
+$user = User::fromDenseJson($json);
+
+$bytes = $user->toBytes();
+$user = User::fromBytes($bytes);
+```
 
 SkirRPC methods are emitted in `SkirMethods.php` as `MethodDescriptor` instances. The generator also emits a module-scoped method enum such as `AdminSkirMethod.php` for typed server routing.
 

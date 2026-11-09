@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { generatePhpFiles } from "../src/generator.js";
 
 describe("generated PHP", () => {
-  it("round-trips dense JSON through php-skir/runtime", () => {
+  it("round-trips dense JSON, readable JSON, and binary through php-skir/runtime", () => {
     const projectPath = mkdtempSync(join(tmpdir(), "skir-php-generator-"));
     const sourcePath = join(projectPath, "src");
     const runtimePath = process.env.SKIR_RUNTIME_PATH ?? resolve("../runtime");
@@ -216,6 +216,81 @@ $decodedStatus = SubscriptionStatus::fromDenseJson('[2,1743682787000]');
 
 if ($decodedStatus->name() !== 'premium_since' || $decodedStatus->payload() !== 1743682787000) {
     throw new RuntimeException('Unexpected decoded status.');
+}
+
+if ($healthCheckRequest->toReadableJson() !== '{}') {
+    throw new RuntimeException('Unexpected health check readable JSON: '.$healthCheckRequest->toReadableJson());
+}
+
+if (! HealthCheckRequest::fromBytes($healthCheckRequest->toBytes()) instanceof HealthCheckRequest) {
+    throw new RuntimeException('Unexpected health check binary round trip.');
+}
+
+$premiumSince = [
+    'kind' => 'premium_since',
+    'value' => [
+        'unix_millis' => 1743682787000,
+        'formatted' => '2025-04-03T12:19:47.000Z',
+    ],
+];
+$expectedReadableUser = [
+    'user_id' => 400,
+    'name' => 'John Doe',
+    'address' => ['city' => 'Antwerp', 'postal_codes' => ['2000', '2018']],
+    'tags' => ['admin', 'beta'],
+    'nickname' => 'johnny',
+    'previous_addresses' => [
+        ['city' => 'Brussels', 'postal_codes' => ['1000']],
+        ['city' => 'Ghent', 'postal_codes' => ['9000']],
+    ],
+    'subscription_status' => $premiumSince,
+    'status_history' => ['free', $premiumSince],
+];
+
+if (json_decode($user->toReadableJson(), true, flags: JSON_THROW_ON_ERROR) !== $expectedReadableUser) {
+    throw new RuntimeException('Unexpected user readable JSON: '.$user->toReadableJson());
+}
+
+if (User::fromDenseJson($user->toReadableJson())->toDenseJson() !== $user->toDenseJson()) {
+    throw new RuntimeException('Unexpected user readable JSON round trip.');
+}
+
+$userBytes = $user->toBytes();
+
+if (! str_starts_with($userBytes, 'skir')) {
+    throw new RuntimeException('Unexpected user binary header: '.bin2hex($userBytes));
+}
+
+$bytesDecodedUser = User::fromBytes($userBytes);
+
+if ($bytesDecodedUser->toDenseJson() !== $user->toDenseJson()) {
+    throw new RuntimeException('Unexpected user binary round trip: '.$bytesDecodedUser->toDenseJson());
+}
+
+if (! $bytesDecodedUser->address instanceof Address || ! $bytesDecodedUser->previousAddresses[1] instanceof Address) {
+    throw new RuntimeException('Unexpected binary decoded nested records.');
+}
+
+if ($bytesDecodedUser->statusHistory[1]->name() !== 'premium_since' || $bytesDecodedUser->statusHistory[1]->payload() !== 1743682787000) {
+    throw new RuntimeException('Unexpected binary decoded enum array.');
+}
+
+if (json_decode($status->toReadableJson(), true, flags: JSON_THROW_ON_ERROR) !== $premiumSince) {
+    throw new RuntimeException('Unexpected status readable JSON: '.$status->toReadableJson());
+}
+
+if (SubscriptionStatus::free()->toReadableJson() !== '"free"') {
+    throw new RuntimeException('Unexpected constant status readable JSON: '.SubscriptionStatus::free()->toReadableJson());
+}
+
+$bytesDecodedStatus = SubscriptionStatus::fromBytes($status->toBytes());
+
+if ($bytesDecodedStatus->name() !== 'premium_since' || $bytesDecodedStatus->payload() !== 1743682787000) {
+    throw new RuntimeException('Unexpected binary decoded status.');
+}
+
+if (SubscriptionStatus::fromBytes(SubscriptionStatus::free()->toBytes())->name() !== 'free') {
+    throw new RuntimeException('Unexpected binary decoded constant status.');
 }
 
 $method = SkirMethods::getUser();
