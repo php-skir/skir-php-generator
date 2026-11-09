@@ -30,8 +30,10 @@ export class StandardPhpTarget implements PhpTargetAdapter {
     }
 
     const className = classNameForRecord(record, context);
+    const binaryFormat = importClass(context.imports, "Skir\\Runtime\\BinaryFormat");
     const denseJson = importClass(context.imports, "Skir\\Runtime\\DenseJson");
     const fieldClass = importClass(context.imports, "Skir\\Runtime\\Field");
+    const readableJson = importClass(context.imports, "Skir\\Runtime\\ReadableJson");
     const typeClass = importClass(context.imports, "Skir\\Runtime\\Type");
     const fields = record.fields.filter(isStructField);
     const constructor = this.renderConstructor(fields, context);
@@ -42,6 +44,9 @@ export class StandardPhpTarget implements PhpTargetAdapter {
       this.renderFromArray(className, fields, context),
       this.renderToDenseJson(denseJson),
       this.renderFromDenseJson(className, denseJson),
+      this.renderToReadableJson(readableJson),
+      this.renderToBytes(binaryFormat),
+      this.renderFromBytes(className, binaryFormat),
     ].filter((member): member is string => member !== null);
     const body = [
       `final readonly class ${className}`,
@@ -276,6 +281,33 @@ export class StandardPhpTarget implements PhpTargetAdapter {
       `public static function fromDenseJson(string $json): ${className}`,
       "{",
       `    return self::fromArray(${denseJson}::fromJson(self::skirType(), $json));`,
+      "}",
+    ].join("\n");
+  }
+
+  private renderToReadableJson(readableJson: string): string {
+    return [
+      "public function toReadableJson(): string",
+      "{",
+      `    return ${readableJson}::toJson(self::skirType(), $this->toArray());`,
+      "}",
+    ].join("\n");
+  }
+
+  private renderToBytes(binaryFormat: string): string {
+    return [
+      "public function toBytes(): string",
+      "{",
+      `    return ${binaryFormat}::encode(self::skirType(), $this->toArray());`,
+      "}",
+    ].join("\n");
+  }
+
+  private renderFromBytes(className: string, binaryFormat: string): string {
+    return [
+      `public static function fromBytes(string $bytes): ${className}`,
+      "{",
+      `    return self::fromArray(${binaryFormat}::decode(self::skirType(), $bytes));`,
       "}",
     ].join("\n");
   }

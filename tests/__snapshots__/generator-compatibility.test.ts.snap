@@ -16,8 +16,10 @@ declare(strict_types=1);
 
 namespace Skir\\Common;
 
+use Skir\\Runtime\\BinaryFormat;
 use Skir\\Runtime\\DenseJson;
 use Skir\\Runtime\\Field;
+use Skir\\Runtime\\ReadableJson;
 use Skir\\Runtime\\Type;
 
 final readonly class Address
@@ -62,6 +64,21 @@ final readonly class Address
     {
         return self::fromArray(DenseJson::fromJson(self::skirType(), $json));
     }
+
+    public function toReadableJson(): string
+    {
+        return ReadableJson::toJson(self::skirType(), $this->toArray());
+    }
+
+    public function toBytes(): string
+    {
+        return BinaryFormat::encode(self::skirType(), $this->toArray());
+    }
+
+    public static function fromBytes(string $bytes): Address
+    {
+        return self::fromArray(BinaryFormat::decode(self::skirType(), $bytes));
+    }
 }
 ",
     "path": "Common/Address.php",
@@ -80,8 +97,10 @@ declare(strict_types=1);
 
 namespace Skir\\Admin;
 
+use Skir\\Runtime\\BinaryFormat;
 use Skir\\Runtime\\DenseJson;
 use Skir\\Runtime\\Field;
+use Skir\\Runtime\\ReadableJson;
 use Skir\\Runtime\\Type;
 use Skir\\Common\\Address;
 
@@ -140,6 +159,21 @@ final readonly class User
     {
         return self::fromArray(DenseJson::fromJson(self::skirType(), $json));
     }
+
+    public function toReadableJson(): string
+    {
+        return ReadableJson::toJson(self::skirType(), $this->toArray());
+    }
+
+    public function toBytes(): string
+    {
+        return BinaryFormat::encode(self::skirType(), $this->toArray());
+    }
+
+    public static function fromBytes(string $bytes): User
+    {
+        return self::fromArray(BinaryFormat::decode(self::skirType(), $bytes));
+    }
 }
 ",
     "path": "Admin/User.php",
@@ -158,8 +192,10 @@ declare(strict_types=1);
 
 namespace Skir\\Admin;
 
+use Skir\\Runtime\\BinaryFormat;
 use Skir\\Runtime\\DenseJson;
 use Skir\\Runtime\\EnumValue;
+use Skir\\Runtime\\ReadableJson;
 use Skir\\Runtime\\Type;
 use Skir\\Runtime\\Variant;
 
@@ -225,6 +261,21 @@ final readonly class SubscriptionStatus
     public static function fromDenseJson(string $json): SubscriptionStatus
     {
         return new self(DenseJson::fromJson(self::skirType(), $json));
+    }
+
+    public function toReadableJson(): string
+    {
+        return ReadableJson::toJson(self::skirType(), $this->value);
+    }
+
+    public function toBytes(): string
+    {
+        return BinaryFormat::encode(self::skirType(), $this->value);
+    }
+
+    public static function fromBytes(string $bytes): SubscriptionStatus
+    {
+        return new self(BinaryFormat::decode(self::skirType(), $bytes));
     }
 }
 ",
