@@ -16,7 +16,7 @@ The npm package uses [`@php-skir/generator-core`](https://github.com/php-skir/ge
 
 ```bash
 npm install --save-dev skir skir-php-generator
-composer require php-skir/runtime
+composer require "php-skir/runtime:^0.2.1"
 ```
 
 For generated typed RPC clients:
