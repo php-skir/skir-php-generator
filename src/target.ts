@@ -2,7 +2,9 @@ import {
   importClass,
   importClassAs,
   indent,
+  renderDocArgument,
   renderPhpFile,
+  renderRecordMetadataArguments,
   toClassName,
   toPhpNamespaceSegment,
   toPropertyName,
@@ -217,7 +219,7 @@ export class StandardPhpTarget implements PhpTargetAdapter {
         throw new Error(`Struct field ${field.name} in ${record.identity} has no payload type.`);
       }
 
-      return `    ${fieldClass}::value('${field.name}', ${field.number}, ${runtimeTypeExpression(field.type, context, this, typeClass)}),`;
+      return `    ${fieldClass}::value('${field.name}', ${field.number}, ${runtimeTypeExpression(field.type, context, this, typeClass)}${renderDocArgument(field.doc)}),`;
     }).join("\n");
 
     return [
@@ -225,7 +227,7 @@ export class StandardPhpTarget implements PhpTargetAdapter {
       "{",
       `    return ${typeClass}::struct([`,
       entries,
-      "    ]);",
+      `    ]${renderRecordMetadataArguments(record)});`,
       "}",
     ].join("\n");
   }
